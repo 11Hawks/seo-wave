@@ -86,6 +86,7 @@ model User {
   auditLogs           AuditLog[]
   billingCustomer     BillingCustomer?
   notifications       Notification[]
+  googleIntegrations  GoogleIntegration[]
 
   @@index([email])
   @@index([status])
@@ -132,6 +133,7 @@ model Organization {
   billingCustomer   BillingCustomer?
   invitations       OrganizationInvitation[]
   apiKeys           ApiKey[]
+  googleIntegrations GoogleIntegration[]
 
   @@map("organizations")
 }
@@ -209,16 +211,22 @@ model Project {
   targetCountries String[] @default([]) @map("target_countries")
   targetLanguages String[] @default([]) @map("target_languages")
   competitors     String[] @default([])
+  
+  // Google Integration Status
+  gscConnected   Boolean   @default(false) @map("gsc_connected")
+  gaConnected    Boolean   @default(false) @map("ga_connected")
+  lastGscSyncAt  DateTime? @map("last_gsc_sync_at")
+  lastGaSyncAt   DateTime? @map("last_ga_sync_at")
 
   // Relations
-  user                    User                     @relation(fields: [userId], references: [id])
-  organization            Organization?            @relation(fields: [organizationId], references: [id])
-  keywords                Keyword[]
-  rankings                Ranking[]
-  backlinks               Backlink[]
-  siteAudits              SiteAudit[]
-  googleSearchConsoleData GoogleSearchConsoleData[]
-  googleAnalyticsData     GoogleAnalyticsData[]
+  user                User                  @relation(fields: [userId], references: [id])
+  organization        Organization?         @relation(fields: [organizationId], references: [id])
+  keywords            Keyword[]
+  rankings            Ranking[]
+  backlinks           Backlink[]
+  siteAudits          SiteAudit[]
+  searchConsoleData   SearchConsoleData[]
+  analyticsData       AnalyticsData[]
 
   @@index([userId])
   @@index([organizationId])
@@ -487,13 +495,40 @@ model SiteAudit {
 // GOOGLE INTEGRATION DATA
 // ============================================================================
 
-model GoogleSearchConsoleData {
+enum GoogleService {
+  SEARCH_CONSOLE
+  ANALYTICS
+}
+
+model GoogleIntegration {
+  id             String        @id @default(cuid())
+  userId         String        @map("user_id")
+  organizationId String        @map("organization_id")
+  service        GoogleService
+  accessToken    String        @map("access_token")
+  refreshToken   String        @map("refresh_token")
+  tokenExpiry    DateTime?     @map("token_expiry")
+  scopes         String[]      @default([])
+  properties     String[]      @default([])
+  isActive       Boolean       @default(true) @map("is_active")
+  lastSyncAt     DateTime?     @map("last_sync_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId, service])
+  @@map("google_integrations")
+}
+
+model SearchConsoleData {
   id          String   @id @default(cuid())
   projectId   String   @map("project_id")
-  query       String?
-  page        String?
-  country     String?
-  device      String?
+  siteUrl     String   @map("site_url")
+  dataType    String   @map("data_type") // KEYWORDS, PAGES, COUNTRIES, DEVICES
+  dimensions  String[] @default([])
   clicks      Int      @default(0)
   impressions Int      @default(0)
   ctr         Float    @default(0)
@@ -504,32 +539,25 @@ model GoogleSearchConsoleData {
   // Relations
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  @@unique([projectId, query, page, country, device, date])
-  @@map("google_search_console_data")
+  @@unique([projectId, siteUrl, dataType, date])
+  @@map("search_console_data")
 }
 
-model GoogleAnalyticsData {
-  id           String   @id @default(cuid())
-  projectId    String   @map("project_id")
-  source       String?
-  medium       String?
-  campaign     String?
-  page         String?
-  country      String?
-  device       String?
-  sessions     Int      @default(0)
-  users        Int      @default(0)
-  pageviews    Int      @default(0)
-  bounceRate   Float    @default(0) @map("bounce_rate")
-  avgSessionDuration Float @default(0) @map("avg_session_duration")
-  date         DateTime
-  createdAt    DateTime @default(now()) @map("created_at")
+model AnalyticsData {
+  id          String   @id @default(cuid())
+  projectId   String   @map("project_id")
+  propertyId  String   @map("property_id")
+  dataType    String   @map("data_type") // TRAFFIC, PAGES, SOURCES, DEVICES, GEOGRAPHY, CONVERSIONS
+  dimensions  String[] @default([])
+  metrics     Float[]  @default([])
+  date        DateTime
+  createdAt   DateTime @default(now()) @map("created_at")
 
   // Relations
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  @@unique([projectId, source, medium, page, country, device, date])
-  @@map("google_analytics_data")
+  @@unique([projectId, propertyId, dataType, date])
+  @@map("analytics_data")
 }
 
 // ============================================================================
@@ -566,24 +594,29 @@ enum AuditAction {
   IMPORT
   BILLING_CHANGE
   PERMISSION_CHANGE
+  GOOGLE_API_CONNECTED
+  GSC_DATA_SYNC
+  GA_DATA_SYNC
 }
 
 model AuditLog {
-  id         String      @id @default(cuid())
-  userId     String?     @map("user_id")
-  action     AuditAction
-  resource   String?
-  resourceId String?     @map("resource_id")
-  details    Json?
-  ipAddress  String?     @map("ip_address")
-  userAgent  String?     @map("user_agent")
-  timestamp  DateTime    @default(now())
+  id             String      @id @default(cuid())
+  userId         String?     @map("user_id")
+  organizationId String?     @map("organization_id")
+  action         AuditAction
+  entityType     String?     @map("entity_type")
+  entityId       String?     @map("entity_id")
+  metadata       Json?
+  ipAddress      String?     @map("ip_address")
+  userAgent      String?     @map("user_agent")
+  timestamp      DateTime    @default(now())
 
   // Relations
   user User? @relation(fields: [userId], references: [id])
 
   @@index([userId, timestamp])
   @@index([action])
+  @@index([organizationId])
   @@map("audit_logs")
 }
 
