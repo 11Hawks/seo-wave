@@ -1,0 +1,653 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearch", "fullTextIndex"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// USER MANAGEMENT & AUTHENTICATION
+// ============================================================================
+
+model Account {
+  id                       String  @id @default(cuid())
+  userId                   String  @map("user_id")
+  type                     String
+  provider                 String
+  providerAccountId        String  @map("provider_account_id")
+  refresh_token            String? @db.Text
+  access_token             String? @db.Text
+  expires_at               Int?
+  token_type               String?
+  scope                    String?
+  id_token                 String? @db.Text
+  session_state            String?
+  refresh_token_expires_in Int?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+  DELETED
+}
+
+model User {
+  id              String     @id @default(cuid())
+  email           String     @unique
+  emailVerified   DateTime?  @map("email_verified")
+  name            String?
+  image           String?
+  role            UserRole   @default(MEMBER)
+  status          UserStatus @default(PENDING_VERIFICATION)
+  passwordHash    String?    @map("password_hash")
+  lastLoginAt     DateTime?  @map("last_login_at")
+  loginAttempts   Int        @default(0) @map("login_attempts")
+  lockedUntil     DateTime?  @map("locked_until")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+  deletedAt       DateTime?  @map("deleted_at")
+
+  // Relations
+  accounts            Account[]
+  sessions            Session[]
+  ownedOrganizations  Organization[]        @relation("OrganizationOwner")
+  organizationMembers OrganizationMember[]
+  projects            Project[]
+  apiKeys             ApiKey[]
+  auditLogs           AuditLog[]
+  billingCustomer     BillingCustomer?
+  notifications       Notification[]
+
+  @@index([email])
+  @@index([status])
+  @@index([createdAt])
+  @@map("users")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ============================================================================
+// ORGANIZATION & PROJECT MANAGEMENT
+// ============================================================================
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+model Organization {
+  id          String             @id @default(cuid())
+  name        String
+  slug        String             @unique
+  description String?
+  logo        String?
+  website     String?
+  status      OrganizationStatus @default(ACTIVE)
+  ownerId     String             @map("owner_id")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+  deletedAt   DateTime?          @map("deleted_at")
+
+  // Relations
+  owner             User                   @relation("OrganizationOwner", fields: [ownerId], references: [id])
+  members           OrganizationMember[]
+  projects          Project[]
+  billingCustomer   BillingCustomer?
+  invitations       OrganizationInvitation[]
+  apiKeys           ApiKey[]
+
+  @@map("organizations")
+}
+
+enum OrganizationMemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+model OrganizationMember {
+  id             String                   @id @default(cuid())
+  organizationId String                   @map("organization_id")
+  userId         String                   @map("user_id")
+  role           OrganizationMemberRole   @default(MEMBER)
+  joinedAt       DateTime                 @default(now()) @map("joined_at")
+  invitedBy      String?                  @map("invited_by")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@map("organization_members")
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+model OrganizationInvitation {
+  id             String             @id @default(cuid())
+  organizationId String             @map("organization_id")
+  email          String
+  role           OrganizationMemberRole @default(MEMBER)
+  status         InvitationStatus   @default(PENDING)
+  token          String             @unique
+  invitedBy      String             @map("invited_by")
+  expiresAt      DateTime           @map("expires_at")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  respondedAt    DateTime?          @map("responded_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, email])
+  @@map("organization_invitations")
+}
+
+enum ProjectStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+  DELETED
+}
+
+model Project {
+  id             String        @id @default(cuid())
+  name           String
+  domain         String
+  url            String        @db.Text
+  description    String?
+  status         ProjectStatus @default(ACTIVE)
+  userId         String        @map("user_id")
+  organizationId String?       @map("organization_id")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  deletedAt      DateTime?     @map("deleted_at")
+
+  // SEO Configuration
+  targetCountries String[] @default([]) @map("target_countries")
+  targetLanguages String[] @default([]) @map("target_languages")
+  competitors     String[] @default([])
+
+  // Relations
+  user                    User                     @relation(fields: [userId], references: [id])
+  organization            Organization?            @relation(fields: [organizationId], references: [id])
+  keywords                Keyword[]
+  rankings                Ranking[]
+  backlinks               Backlink[]
+  siteAudits              SiteAudit[]
+  googleSearchConsoleData GoogleSearchConsoleData[]
+  googleAnalyticsData     GoogleAnalyticsData[]
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([domain])
+  @@index([status])
+  @@map("projects")
+}
+
+// ============================================================================
+// BILLING & SUBSCRIPTION MANAGEMENT
+// ============================================================================
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  INCOMPLETE
+  INCOMPLETE_EXPIRED
+  PAST_DUE
+  TRIALING
+  UNPAID
+}
+
+enum BillingInterval {
+  MONTH
+  YEAR
+}
+
+model BillingPlan {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  stripePriceId String @unique @map("stripe_price_id")
+  amount      Int // in cents
+  currency    String   @default("usd")
+  interval    BillingInterval
+  features    Json
+  maxProjects Int      @map("max_projects")
+  maxUsers    Int      @map("max_users")
+  maxKeywords Int      @map("max_keywords")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  subscriptions BillingSubscription[]
+
+  @@map("billing_plans")
+}
+
+model BillingCustomer {
+  id                String   @id @default(cuid())
+  stripeCustomerId  String   @unique @map("stripe_customer_id")
+  userId            String?  @unique @map("user_id")
+  organizationId    String?  @unique @map("organization_id")
+  email             String
+  name              String?
+  phone             String?
+  address           Json?
+  taxId             String?  @map("tax_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user          User?                 @relation(fields: [userId], references: [id])
+  organization  Organization?         @relation(fields: [organizationId], references: [id])
+  subscriptions BillingSubscription[]
+  invoices      BillingInvoice[]
+  usageRecords  UsageRecord[]
+
+  @@map("billing_customers")
+}
+
+model BillingSubscription {
+  id                   String             @id @default(cuid())
+  stripeSubscriptionId String             @unique @map("stripe_subscription_id")
+  customerId           String             @map("customer_id")
+  planId               String             @map("plan_id")
+  status               SubscriptionStatus
+  currentPeriodStart   DateTime           @map("current_period_start")
+  currentPeriodEnd     DateTime           @map("current_period_end")
+  cancelAtPeriodEnd    Boolean            @default(false) @map("cancel_at_period_end")
+  canceledAt           DateTime?          @map("canceled_at")
+  trialStart           DateTime?          @map("trial_start")
+  trialEnd             DateTime?          @map("trial_end")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  // Relations
+  customer BillingCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  plan     BillingPlan     @relation(fields: [planId], references: [id])
+
+  @@map("billing_subscriptions")
+}
+
+model BillingInvoice {
+  id               String   @id @default(cuid())
+  stripeInvoiceId  String   @unique @map("stripe_invoice_id")
+  customerId       String   @map("customer_id")
+  subscriptionId   String?  @map("subscription_id")
+  amount           Int // in cents
+  currency         String   @default("usd")
+  status           String
+  hostedInvoiceUrl String?  @map("hosted_invoice_url")
+  invoicePdf       String?  @map("invoice_pdf")
+  paidAt           DateTime? @map("paid_at")
+  dueDate          DateTime? @map("due_date")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  // Relations
+  customer BillingCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("billing_invoices")
+}
+
+enum UsageMetricType {
+  API_REQUESTS
+  KEYWORDS_TRACKED
+  PROJECTS_CREATED
+  DATA_EXPORTS
+  BACKLINKS_ANALYZED
+}
+
+model UsageRecord {
+  id         String          @id @default(cuid())
+  customerId String          @map("customer_id")
+  metricType UsageMetricType @map("metric_type")
+  quantity   Int
+  timestamp  DateTime        @default(now())
+  metadata   Json?
+
+  // Relations
+  customer BillingCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("usage_records")
+}
+
+// ============================================================================
+// SEO DATA MODELS
+// ============================================================================
+
+enum KeywordDifficulty {
+  VERY_EASY
+  EASY
+  MEDIUM
+  HARD
+  VERY_HARD
+}
+
+model Keyword {
+  id              String            @id @default(cuid())
+  projectId       String            @map("project_id")
+  keyword         String
+  searchVolume    Int?              @map("search_volume")
+  difficulty      KeywordDifficulty?
+  cpc             Float?
+  competition     Float?
+  intent          String?
+  country         String            @default("US")
+  language        String            @default("en")
+  isTracked       Boolean           @default(true) @map("is_tracked")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  project  Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  rankings Ranking[]
+
+  @@unique([projectId, keyword, country])
+  @@index([projectId])
+  @@index([keyword])
+  @@index([country])
+  @@map("keywords")
+}
+
+model Ranking {
+  id            String   @id @default(cuid())
+  keywordId     String   @map("keyword_id")
+  projectId     String   @map("project_id")
+  position      Int?
+  url           String?
+  title         String?
+  description   String?
+  searchEngine  String   @default("google") @map("search_engine")
+  device        String   @default("desktop")
+  location      String   @default("US")
+  date          DateTime @default(now())
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  // Relations
+  keyword Keyword @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([keywordId, date, searchEngine, device])
+  @@index([keywordId])
+  @@index([date])
+  @@index([position])
+  @@map("rankings")
+}
+
+enum BacklinkStatus {
+  ACTIVE
+  LOST
+  BROKEN
+  REDIRECTED
+  NOFOLLOW
+}
+
+model Backlink {
+  id             String        @id @default(cuid())
+  projectId      String        @map("project_id")
+  sourceUrl      String        @map("source_url")
+  targetUrl      String        @map("target_url")
+  anchorText     String?       @map("anchor_text")
+  isDoFollow     Boolean       @default(true) @map("is_do_follow")
+  status         BacklinkStatus @default(ACTIVE)
+  domainRating   Int?          @map("domain_rating")
+  urlRating      Int?          @map("url_rating")
+  traffic        Int?
+  firstSeenAt    DateTime      @map("first_seen_at")
+  lastSeenAt     DateTime      @map("last_seen_at")
+  lostAt         DateTime?     @map("lost_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, sourceUrl, targetUrl])
+  @@map("backlinks")
+}
+
+enum AuditStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model SiteAudit {
+  id                String      @id @default(cuid())
+  projectId         String      @map("project_id")
+  status            AuditStatus @default(PENDING)
+  overallScore      Int?        @map("overall_score")
+  technicalScore    Int?        @map("technical_score")
+  contentScore      Int?        @map("content_score")
+  usabilityScore    Int?        @map("usability_score")
+  performanceScore  Int?        @map("performance_score")
+  totalIssues       Int         @default(0) @map("total_issues")
+  criticalIssues    Int         @default(0) @map("critical_issues")
+  warningIssues     Int         @default(0) @map("warning_issues")
+  noticeIssues      Int         @default(0) @map("notice_issues")
+  crawledPages      Int         @default(0) @map("crawled_pages")
+  startedAt         DateTime?   @map("started_at")
+  completedAt       DateTime?   @map("completed_at")
+  report            Json?
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("site_audits")
+}
+
+// ============================================================================
+// GOOGLE INTEGRATION DATA
+// ============================================================================
+
+model GoogleSearchConsoleData {
+  id          String   @id @default(cuid())
+  projectId   String   @map("project_id")
+  query       String?
+  page        String?
+  country     String?
+  device      String?
+  clicks      Int      @default(0)
+  impressions Int      @default(0)
+  ctr         Float    @default(0)
+  position    Float    @default(0)
+  date        DateTime
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, query, page, country, device, date])
+  @@map("google_search_console_data")
+}
+
+model GoogleAnalyticsData {
+  id           String   @id @default(cuid())
+  projectId    String   @map("project_id")
+  source       String?
+  medium       String?
+  campaign     String?
+  page         String?
+  country      String?
+  device       String?
+  sessions     Int      @default(0)
+  users        Int      @default(0)
+  pageviews    Int      @default(0)
+  bounceRate   Float    @default(0) @map("bounce_rate")
+  avgSessionDuration Float @default(0) @map("avg_session_duration")
+  date         DateTime
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, source, medium, page, country, device, date])
+  @@map("google_analytics_data")
+}
+
+// ============================================================================
+// SYSTEM & AUDIT MODELS
+// ============================================================================
+
+model ApiKey {
+  id             String        @id @default(cuid())
+  name           String
+  keyHash        String        @unique @map("key_hash")
+  userId         String?       @map("user_id")
+  organizationId String?       @map("organization_id")
+  permissions    String[]      @default([])
+  lastUsedAt     DateTime?     @map("last_used_at")
+  expiresAt      DateTime?     @map("expires_at")
+  isActive       Boolean       @default(true) @map("is_active")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("api_keys")
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  EXPORT
+  IMPORT
+  BILLING_CHANGE
+  PERMISSION_CHANGE
+}
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  userId     String?     @map("user_id")
+  action     AuditAction
+  resource   String?
+  resourceId String?     @map("resource_id")
+  details    Json?
+  ipAddress  String?     @map("ip_address")
+  userAgent  String?     @map("user_agent")
+  timestamp  DateTime    @default(now())
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId, timestamp])
+  @@index([action])
+  @@map("audit_logs")
+}
+
+enum NotificationType {
+  RANKING_CHANGE
+  BACKLINK_GAINED
+  BACKLINK_LOST
+  AUDIT_COMPLETED
+  BILLING_ALERT
+  SYSTEM_ALERT
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+  ARCHIVED
+}
+
+model Notification {
+  id        String             @id @default(cuid())
+  userId    String             @map("user_id")
+  type      NotificationType
+  status    NotificationStatus @default(UNREAD)
+  title     String
+  message   String
+  data      Json?
+  createdAt DateTime           @default(now()) @map("created_at")
+  readAt    DateTime?          @map("read_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+// ============================================================================
+// DATA ACCURACY & CONFIDENCE TRACKING
+// ============================================================================
+
+enum DataSource {
+  GOOGLE_SEARCH_CONSOLE
+  GOOGLE_ANALYTICS
+  SERPAPI
+  DATAFORSEO
+  AHREFS_API
+  SEMRUSH_API
+  MOZ_API
+  INTERNAL_CRAWLER
+}
+
+model DataAccuracyReport {
+  id               String     @id @default(cuid())
+  projectId        String     @map("project_id")
+  dataSource       DataSource @map("data_source")
+  comparisonSource DataSource @map("comparison_source")
+  metric           String
+  expectedValue    Float      @map("expected_value")
+  actualValue      Float      @map("actual_value")
+  variance         Float
+  confidenceScore  Float      @map("confidence_score")
+  isAccurate       Boolean    @map("is_accurate")
+  checkedAt        DateTime   @default(now()) @map("checked_at")
+  metadata         Json?
+
+  @@map("data_accuracy_reports")
+}
+
