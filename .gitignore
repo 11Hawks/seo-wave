@@ -107,3 +107,6 @@ temp/
 /playwright-report/
 /blob-report/
 /playwright/.cache/core
+
+# System core dumps
+core
