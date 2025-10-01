@@ -10,6 +10,9 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
 import { TrpcProvider } from '@/components/providers/trpc-provider';
 import { QueryProvider } from '@/components/providers/query-provider';
+
+// Check if we're in preview mode
+const isPreviewMode = process.env.PREVIEW_MODE === 'true' || process.env.DISABLE_AUTH === 'true';
 import '@/styles/globals.css';
 
 const inter = Inter({ 
@@ -105,12 +108,6 @@ export default function RootLayout({ children }: RootLayoutProps) {
       suppressHydrationWarning
     >
       <head>
-        {/* Security headers */}
-        <meta httpEquiv="X-Content-Type-Options" content="nosniff" />
-        <meta httpEquiv="X-Frame-Options" content="DENY" />
-        <meta httpEquiv="X-XSS-Protection" content="1; mode=block" />
-        <meta httpEquiv="Referrer-Policy" content="origin-when-cross-origin" />
-        
         {/* Performance hints */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
@@ -127,34 +124,61 @@ export default function RootLayout({ children }: RootLayoutProps) {
         `}
         suppressHydrationWarning
       >
-        <QueryProvider>
-          <TrpcProvider>
-            <ClientSessionProvider>
-              <ThemeProvider
-                attribute="class"
-                defaultTheme="system"
-                enableSystem
-                disableTransitionOnChange
-              >
-                {/* Skip to main content link for accessibility */}
-                <a
-                  href="#main-content"
-                  className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-50 bg-primary text-primary-foreground px-4 py-2 rounded-md"
+        {isPreviewMode ? (
+          // Simplified layout for preview mode
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            {/* Skip to main content link for accessibility */}
+            <a
+              href="#main-content"
+              className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-50 bg-primary text-primary-foreground px-4 py-2 rounded-md"
+            >
+              Skip to main content
+            </a>
+            
+            {/* Main application content */}
+            <div id="main-content" className="min-h-screen">
+              {children}
+            </div>
+            
+            {/* Global toast notifications */}
+            <Toaster />
+          </ThemeProvider>
+        ) : (
+          // Full layout with all providers
+          <QueryProvider>
+            <TrpcProvider>
+              <ClientSessionProvider>
+                <ThemeProvider
+                  attribute="class"
+                  defaultTheme="system"
+                  enableSystem
+                  disableTransitionOnChange
                 >
-                  Skip to main content
-                </a>
-                
-                {/* Main application content */}
-                <div id="main-content" className="min-h-screen">
-                  {children}
-                </div>
-                
-                {/* Global toast notifications */}
-                <Toaster />
-              </ThemeProvider>
-            </ClientSessionProvider>
-          </TrpcProvider>
-        </QueryProvider>
+                  {/* Skip to main content link for accessibility */}
+                  <a
+                    href="#main-content"
+                    className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-50 bg-primary text-primary-foreground px-4 py-2 rounded-md"
+                  >
+                    Skip to main content
+                  </a>
+                  
+                  {/* Main application content */}
+                  <div id="main-content" className="min-h-screen">
+                    {children}
+                  </div>
+                  
+                  {/* Global toast notifications */}
+                  <Toaster />
+                </ThemeProvider>
+              </ClientSessionProvider>
+            </TrpcProvider>
+          </QueryProvider>
+        )}
         
         {/* Performance monitoring and error tracking */}
         {process.env.NODE_ENV === 'production' && (

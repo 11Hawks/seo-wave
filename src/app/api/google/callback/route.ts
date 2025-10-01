@@ -5,6 +5,14 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { SimpleGoogleService } from '@/lib/google-simple'
+import { GoogleAPIService } from '@/lib/google-api-service'
+import { rateLimitAPI } from '@/lib/rate-limiting-unified'
+import { z } from 'zod'
+
+const callbackSchema = z.object({
+  code: z.string().min(1, 'Authorization code is required'),
+  state: z.string().optional()
+})
 
 export async function GET(request: NextRequest) {
   try {
@@ -78,6 +86,71 @@ export async function GET(request: NextRequest) {
     console.error('Google callback error:', error)
     return NextResponse.redirect(
       `${process.env.NEXTAUTH_URL}/dashboard/integrations?error=connection_failed`
+    )
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    // Apply rate limiting
+    const rateLimitResult = await rateLimitAPI(request, 'google-callback', 20)
+    
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded' },
+        { 
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': '20',
+            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+            'X-RateLimit-Reset': rateLimitResult.reset?.toString() || ''
+          }
+        }
+      )
+    }
+
+    // Parse and validate request body
+    const body = await request.json()
+    const validationResult = callbackSchema.safeParse(body)
+    
+    if (!validationResult.success) {
+      return NextResponse.json(
+        { 
+          error: 'Invalid callback parameters',
+          details: validationResult.error.errors
+        },
+        { status: 400 }
+      )
+    }
+
+    const { code, state } = validationResult.data
+
+    // Exchange code for tokens using GoogleAPIService
+    const googleService = GoogleAPIService.getInstance()
+    const tokens = await googleService.exchangeCodeForTokens(code)
+
+    return NextResponse.json({
+      success: true,
+      tokens: {
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expires_in: tokens.expires_in,
+        scope: tokens.scope
+      }
+    }, {
+      status: 200,
+      headers: {
+        'X-RateLimit-Limit': '20',
+        'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+        'X-RateLimit-Reset': rateLimitResult.reset?.toString() || ''
+      }
+    })
+
+  } catch (error) {
+    console.error('Google OAuth callback error:', error)
+    return NextResponse.json(
+      { error: 'OAuth callback failed' },
+      { status: 500 }
     )
   }
 }

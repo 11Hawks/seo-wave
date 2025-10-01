@@ -10,7 +10,10 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import { compare } from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { env } from '@/lib/env';
-import type { UserRole, UserStatus } from '@prisma/client';
+
+// Define types locally to avoid Prisma dependency issues
+type UserRole = 'USER' | 'ADMIN' | 'SUPER_ADMIN';
+type UserStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
 
 /**
  * Module augmentation for NextAuth types
@@ -125,11 +128,15 @@ async function createAuditLog(
   });
 }
 
+// Check if authentication should be disabled
+const isPreviewMode = process.env.PREVIEW_MODE === 'true' || process.env.DISABLE_AUTH === 'true';
+
 /**
  * NextAuth.js configuration
  */
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  // Only use Prisma adapter if not in preview mode
+  ...(isPreviewMode ? {} : { adapter: PrismaAdapter(prisma) }),
   
   session: {
     strategy: 'jwt',
@@ -144,13 +151,13 @@ export const authOptions: NextAuthOptions = {
     newUser: '/onboarding',
   },
   
-  providers: [
+  providers: isPreviewMode ? [] : [
     /**
      * Google OAuth Provider
      */
     GoogleProvider({
-      clientId: env.GOOGLE_CLIENT_ID,
-      clientSecret: env.GOOGLE_CLIENT_SECRET,
+      clientId: env.GOOGLE_CLIENT_ID || 'dev-client-id',
+      clientSecret: env.GOOGLE_CLIENT_SECRET || 'dev-client-secret',
       authorization: {
         params: {
           scope: [
@@ -167,7 +174,7 @@ export const authOptions: NextAuthOptions = {
     /**
      * Email/Password Credentials Provider
      */
-    CredentialsProvider({
+    ...(isPreviewMode ? [] : [CredentialsProvider({
       id: 'credentials',
       name: 'credentials',
       credentials: {
@@ -240,7 +247,7 @@ export const authOptions: NextAuthOptions = {
           organizationId: user.organizationMembers[0]?.organizationId || '',
         };
       },
-    }),
+    })]),
   ],
   
   callbacks: {

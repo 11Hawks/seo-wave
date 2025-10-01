@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { hash } from 'bcryptjs';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { rateLimit } from '@/lib/rate-limit';
+import { authRateLimit } from '@/lib/rate-limiting-unified';
 
 /**
  * Registration request validation schema
@@ -42,15 +42,10 @@ function generateSlug(name: string): string {
 export async function POST(request: NextRequest) {
   try {
     // Rate limiting: 5 attempts per hour per IP
-    const limiter = rateLimit({
-      interval: 60 * 60 * 1000, // 1 hour
-      uniqueTokenPerInterval: 500,
-    });
-
     const ip = request.ip || request.headers.get('x-forwarded-for') || 'unknown';
     
     try {
-      await limiter.check(5, ip);
+      await authRateLimit.check(5, ip);
     } catch {
       return NextResponse.json(
         { error: 'Too many registration attempts. Please try again later.' },

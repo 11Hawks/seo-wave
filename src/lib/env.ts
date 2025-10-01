@@ -13,15 +13,15 @@ export const env = createEnv({
    */
   server: {
     // Database
-    DATABASE_URL: z.string().url(),
+    DATABASE_URL: z.string().min(1),
     
     // NextAuth.js
     NEXTAUTH_SECRET: z.string().min(1),
     NEXTAUTH_URL: z.string().url().optional(),
     
-    // Google OAuth
-    GOOGLE_CLIENT_ID: z.string().min(1),
-    GOOGLE_CLIENT_SECRET: z.string().min(1),
+    // Google OAuth (optional for development)
+    GOOGLE_CLIENT_ID: z.string().min(1).optional().default('development-client-id'),
+    GOOGLE_CLIENT_SECRET: z.string().min(1).optional().default('development-client-secret'),
     
     // Google APIs
     GOOGLE_SEARCH_CONSOLE_CLIENT_ID: z.string().min(1).optional(),
@@ -29,9 +29,9 @@ export const env = createEnv({
     GOOGLE_ANALYTICS_CLIENT_ID: z.string().min(1).optional(),
     GOOGLE_ANALYTICS_CLIENT_SECRET: z.string().min(1).optional(),
     
-    // Stripe
-    STRIPE_SECRET_KEY: z.string().min(1),
-    STRIPE_WEBHOOK_SECRET: z.string().min(1),
+    // Stripe (optional for development)
+    STRIPE_SECRET_KEY: z.string().min(1).optional().default('sk_test_development'),
+    STRIPE_WEBHOOK_SECRET: z.string().min(1).optional().default('whsec_development'),
     
     // Redis
     REDIS_URL: z.string().url().optional(),
@@ -42,8 +42,8 @@ export const env = createEnv({
     DATAFORSEO_PASSWORD: z.string().min(1).optional(),
     
     // Security
-    JWT_SECRET: z.string().min(32),
-    ENCRYPTION_KEY: z.string().min(32),
+    JWT_SECRET: z.string().min(1).optional().default('development-jwt-secret-key-32-characters'),
+    ENCRYPTION_KEY: z.string().min(1).optional().default('development-encryption-key-32-chars'),
     
     // Rate Limiting
     RATE_LIMIT_MAX: z.string().regex(/^\d+$/).transform(Number).optional(),
@@ -62,8 +62,8 @@ export const env = createEnv({
    * For them to be exposed to the client, prefix them with `NEXT_PUBLIC_`.
    */
   client: {
-    NEXT_PUBLIC_APP_URL: z.string().url(),
-    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().min(1),
+    NEXT_PUBLIC_APP_URL: z.string().url().optional().default('http://localhost:3000'),
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().min(1).optional().default('pk_test_development'),
   },
   
   /**

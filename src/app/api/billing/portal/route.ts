@@ -8,7 +8,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { createBillingPortalSession } from '@/lib/stripe';
-import { createRateLimitMiddleware } from '@/lib/rate-limit';
+import { createRateLimitMiddleware } from '@/lib/rate-limiting-unified';
 import { env } from '@/lib/env';
 
 /**

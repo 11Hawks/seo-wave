@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { createCheckoutSession, createStripeCustomer } from '@/lib/stripe';
-import { createRateLimitMiddleware } from '@/lib/rate-limit';
+import { createRateLimitMiddleware } from '@/lib/rate-limiting-unified';
 import { env } from '@/lib/env';
 
 /**

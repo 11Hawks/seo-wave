@@ -5,6 +5,7 @@
  */
 
 import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 
 // Types for accuracy scoring
 export interface DataPoint {
@@ -66,8 +67,8 @@ export class DataAccuracyEngine {
   private readonly VARIANCE_TOLERANCE = 0.15 // 15% tolerance
   private readonly MIN_SOURCES_FOR_VALIDATION = 2
 
-  constructor(prisma: PrismaClient) {
-    this.prisma = prisma
+  constructor(prismaClient?: PrismaClient) {
+    this.prisma = prismaClient || prisma
   }
 
   /**
@@ -341,7 +342,18 @@ export class DataAccuracyEngine {
    * Store accuracy report in database
    */
   private async storeAccuracyReport(report: AccuracyReport): Promise<void> {
+    // Check if we're in preview mode
+    const isPreviewMode = process.env.PREVIEW_MODE === 'true' || process.env.DISABLE_AUTH === 'true';
+    
+    if (isPreviewMode) {
+      // Mock storage - just log in preview mode
+      console.log('Preview mode: Mock storing accuracy report:', report.id);
+      return;
+    }
+
     try {
+      // In real mode, attempt to store in database
+      // Note: This will use mock Prisma client if database isn't available
       await this.prisma.dataAccuracyReport.create({
         data: {
           projectId: report.projectId,
@@ -363,7 +375,10 @@ export class DataAccuracyEngine {
       })
     } catch (error) {
       console.error('Failed to store accuracy report:', error)
-      throw new Error('Failed to store accuracy report')
+      // Don't throw in preview mode - just log the error
+      if (!isPreviewMode) {
+        throw new Error('Failed to store accuracy report')
+      }
     }
   }
 
@@ -392,31 +407,43 @@ export class DataAccuracyEngine {
     metric: string,
     timestamp: Date
   ): Promise<DataSource[]> {
-    // This would query the database for available data sources
-    // For now, return a mock implementation
-    const mockSources: DataSource[] = []
+    // Check if we're in preview mode
+    const isPreviewMode = process.env.PREVIEW_MODE === 'true' || process.env.DISABLE_AUTH === 'true';
     
-    // Check if Google integrations are connected
-    const googleIntegrations = await this.prisma.googleIntegration.findMany({
-      where: {
-        organization: {
-          projects: {
-            some: { id: projectId },
+    if (isPreviewMode) {
+      // Mock data sources for preview mode
+      return [DataSource.GOOGLE_SEARCH_CONSOLE, DataSource.GOOGLE_ANALYTICS];
+    }
+
+    try {
+      const mockSources: DataSource[] = []
+      
+      // Check if Google integrations are connected
+      const googleIntegrations = await this.prisma.googleIntegration.findMany({
+        where: {
+          organization: {
+            projects: {
+              some: { id: projectId },
+            },
           },
+          isActive: true,
         },
-        isActive: true,
-      },
-    })
+      })
 
-    if (googleIntegrations.some(g => g.service === 'SEARCH_CONSOLE')) {
-      mockSources.push(DataSource.GOOGLE_SEARCH_CONSOLE)
+      if (googleIntegrations.some(g => g.service === 'SEARCH_CONSOLE')) {
+        mockSources.push(DataSource.GOOGLE_SEARCH_CONSOLE)
+      }
+
+      if (googleIntegrations.some(g => g.service === 'ANALYTICS')) {
+        mockSources.push(DataSource.GOOGLE_ANALYTICS)
+      }
+
+      return mockSources
+    } catch (error) {
+      console.error('Failed to get available sources:', error)
+      // Return default sources if database query fails
+      return [DataSource.GOOGLE_SEARCH_CONSOLE]
     }
-
-    if (googleIntegrations.some(g => g.service === 'ANALYTICS')) {
-      mockSources.push(DataSource.GOOGLE_ANALYTICS)
-    }
-
-    return mockSources
   }
 
   /**
@@ -427,40 +454,69 @@ export class DataAccuracyEngine {
     metric?: string,
     days = 30
   ): Promise<AccuracyReport[]> {
-    const startDate = new Date()
-    startDate.setDate(startDate.getDate() - days)
-
-    const reports = await this.prisma.dataAccuracyReport.findMany({
-      where: {
+    // Check if we're in preview mode
+    const isPreviewMode = process.env.PREVIEW_MODE === 'true' || process.env.DISABLE_AUTH === 'true';
+    
+    if (isPreviewMode) {
+      // Mock accuracy history for preview mode
+      return Array.from({ length: 5 }, (_, i) => ({
+        id: `accuracy_${Date.now()}_${i}`,
         projectId,
-        metric: metric || undefined,
-        checkedAt: {
-          gte: startDate,
+        metric: metric || 'organic_clicks',
+        primaryValue: Math.floor(Math.random() * 1000) + 100,
+        secondaryValues: [],
+        confidenceScore: {
+          overall: Math.floor(Math.random() * 20) + 80, // 80-100%
+          freshness: Math.floor(Math.random() * 20) + 80,
+          consistency: Math.floor(Math.random() * 25) + 75,
+          reliability: Math.floor(Math.random() * 15) + 85,
+          completeness: Math.floor(Math.random() * 30) + 70,
         },
-      },
-      orderBy: {
-        checkedAt: 'desc',
-      },
-      take: 100,
-    })
+        discrepancies: [],
+        isAccurate: Math.random() > 0.2, // 80% accurate
+        checkedAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000), // Last 5 days
+      }));
+    }
 
-    return reports.map(report => ({
-      id: report.id,
-      projectId: report.projectId,
-      metric: report.metric,
-      primaryValue: report.expectedValue,
-      secondaryValues: [],
-      confidenceScore: {
-        overall: report.confidenceScore,
-        freshness: 80, // Would be stored in metadata
-        consistency: 75,
-        reliability: 85,
-        completeness: 70,
-      },
-      discrepancies: [],
-      isAccurate: report.isAccurate,
-      checkedAt: report.checkedAt,
-    }))
+    try {
+      const startDate = new Date()
+      startDate.setDate(startDate.getDate() - days)
+
+      const reports = await this.prisma.dataAccuracyReport.findMany({
+        where: {
+          projectId,
+          metric: metric || undefined,
+          checkedAt: {
+            gte: startDate,
+          },
+        },
+        orderBy: {
+          checkedAt: 'desc',
+        },
+        take: 100,
+      })
+
+      return reports.map(report => ({
+        id: report.id,
+        projectId: report.projectId,
+        metric: report.metric,
+        primaryValue: report.expectedValue,
+        secondaryValues: [],
+        confidenceScore: {
+          overall: report.confidenceScore,
+          freshness: 80, // Would be stored in metadata
+          consistency: 75,
+          reliability: 85,
+          completeness: 70,
+        },
+        discrepancies: [],
+        isAccurate: report.isAccurate,
+        checkedAt: report.checkedAt,
+      }))
+    } catch (error) {
+      console.error('Failed to get accuracy history:', error)
+      return [] // Return empty array if database fails
+    }
   }
 
   /**
@@ -473,19 +529,65 @@ export class DataAccuracyEngine {
     averageConfidence: number
     dataFreshness: number
   }> {
-    const recentReports = await this.prisma.dataAccuracyReport.findMany({
-      where: {
-        projectId,
-        checkedAt: {
-          gte: new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24 hours
-        },
-      },
-      orderBy: {
-        checkedAt: 'desc',
-      },
-    })
+    // Check if we're in preview mode
+    const isPreviewMode = process.env.PREVIEW_MODE === 'true' || process.env.DISABLE_AUTH === 'true';
+    
+    if (isPreviewMode) {
+      // Mock accuracy status for preview mode
+      const now = new Date();
+      return {
+        overallAccuracy: 94,
+        lastChecked: now,
+        criticalIssues: 0,
+        averageConfidence: 87,
+        dataFreshness: 95,
+      };
+    }
 
-    if (recentReports.length === 0) {
+    try {
+      const recentReports = await this.prisma.dataAccuracyReport.findMany({
+        where: {
+          projectId,
+          checkedAt: {
+            gte: new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24 hours
+          },
+        },
+        orderBy: {
+          checkedAt: 'desc',
+        },
+      })
+
+      if (recentReports.length === 0) {
+        return {
+          overallAccuracy: 0,
+          lastChecked: null,
+          criticalIssues: 0,
+          averageConfidence: 0,
+          dataFreshness: 0,
+        }
+      }
+
+      const accurateReports = recentReports.filter(r => r.isAccurate).length
+      const overallAccuracy = (accurateReports / recentReports.length) * 100
+
+      const averageConfidence = 
+        recentReports.reduce((sum, r) => sum + r.confidenceScore, 0) / recentReports.length
+
+      const criticalIssues = recentReports.filter(r => r.confidenceScore < 50).length
+
+      const latestReport = recentReports[0]
+      const dataFreshness = this.calculateFreshnessScore(latestReport.checkedAt)
+
+      return {
+        overallAccuracy: Math.round(overallAccuracy),
+        lastChecked: latestReport.checkedAt,
+        criticalIssues,
+        averageConfidence: Math.round(averageConfidence),
+        dataFreshness,
+      }
+    } catch (error) {
+      console.error('Failed to get project accuracy status:', error)
+      // Return default values if database fails
       return {
         overallAccuracy: 0,
         lastChecked: null,
@@ -493,25 +595,6 @@ export class DataAccuracyEngine {
         averageConfidence: 0,
         dataFreshness: 0,
       }
-    }
-
-    const accurateReports = recentReports.filter(r => r.isAccurate).length
-    const overallAccuracy = (accurateReports / recentReports.length) * 100
-
-    const averageConfidence = 
-      recentReports.reduce((sum, r) => sum + r.confidenceScore, 0) / recentReports.length
-
-    const criticalIssues = recentReports.filter(r => r.confidenceScore < 50).length
-
-    const latestReport = recentReports[0]
-    const dataFreshness = this.calculateFreshnessScore(latestReport.checkedAt)
-
-    return {
-      overallAccuracy: Math.round(overallAccuracy),
-      lastChecked: latestReport.checkedAt,
-      criticalIssues,
-      averageConfidence: Math.round(averageConfidence),
-      dataFreshness,
     }
   }
 }

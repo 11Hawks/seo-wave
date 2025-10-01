@@ -223,6 +223,7 @@ model Project {
   organization        Organization?         @relation(fields: [organizationId], references: [id])
   keywords            Keyword[]
   rankings            Ranking[]
+  keywordAccuracy     KeywordAccuracy[]
   backlinks           Backlink[]
   siteAudits          SiteAudit[]
   searchConsoleData   SearchConsoleData[]
@@ -387,17 +388,39 @@ model Keyword {
   country         String            @default("US")
   language        String            @default("en")
   isTracked       Boolean           @default(true) @map("is_tracked")
+  
+  // Google Search Console Integration
+  gscClicks       Int?              @map("gsc_clicks")
+  gscImpressions  Int?              @map("gsc_impressions")
+  gscCtr          Float?            @map("gsc_ctr")
+  gscPosition     Float?            @map("gsc_position")
+  lastGscUpdate   DateTime?         @map("last_gsc_update")
+  
+  // Keyword Grouping & Organization
+  tags            String[]          @default([])
+  category        String?
+  priority        String?           @default("medium") // low, medium, high, critical
+  
+  // Performance Tracking
+  bestPosition    Int?              @map("best_position")
+  worstPosition   Int?              @map("worst_position")
+  avgPosition     Float?            @map("avg_position")
+  positionTrend   String?           @map("position_trend") // up, down, stable
+  
   createdAt       DateTime          @default(now()) @map("created_at")
   updatedAt       DateTime          @updatedAt @map("updated_at")
 
   // Relations
   project  Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   rankings Ranking[]
+  keywordAccuracy KeywordAccuracy[]
 
   @@unique([projectId, keyword, country])
   @@index([projectId])
   @@index([keyword])
   @@index([country])
+  @@index([isTracked])
+  @@index([priority])
   @@map("keywords")
 }
 
@@ -413,6 +436,17 @@ model Ranking {
   device        String   @default("desktop")
   location      String   @default("US")
   date          DateTime @default(now())
+  
+  // Data Accuracy & Confidence
+  confidenceScore Float?   @map("confidence_score") // 0-100
+  dataSource     String?   @map("data_source") // GSC, SERPAPI, etc.
+  isVerified     Boolean   @default(false) @map("is_verified")
+  
+  // Performance Metrics (for GSC integration)
+  clicks         Int?
+  impressions    Int?
+  ctr            Float?
+  
   createdAt     DateTime @default(now()) @map("created_at")
 
   // Relations
@@ -423,7 +457,44 @@ model Ranking {
   @@index([keywordId])
   @@index([date])
   @@index([position])
+  @@index([confidenceScore])
   @@map("rankings")
+}
+
+model KeywordAccuracy {
+  id              String   @id @default(cuid())
+  keywordId       String   @map("keyword_id")
+  projectId       String   @map("project_id")
+  
+  // Accuracy Metrics
+  confidenceScore Float    @map("confidence_score") // Overall confidence 0-100
+  freshnessScore  Float    @map("freshness_score")  // Data age factor 0-100
+  consistencyScore Float   @map("consistency_score") // Cross-source consistency 0-100
+  reliabilityScore Float   @map("reliability_score") // Source reliability 0-100
+  
+  // Data Sources Used
+  sourcesCount    Int      @map("sources_count")
+  primarySource   String   @map("primary_source")
+  validatedSources String[] @map("validated_sources")
+  
+  // Variance Analysis
+  positionVariance Float?  @map("position_variance")
+  hasDiscrepancies Boolean @default(false) @map("has_discrepancies")
+  
+  // Timestamps
+  calculatedAt    DateTime @map("calculated_at")
+  validUntil      DateTime @map("valid_until")
+  
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  // Relations
+  keyword Keyword @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([keywordId])
+  @@index([confidenceScore])
+  @@index([calculatedAt])
+  @@map("keyword_accuracy")
 }
 
 enum BacklinkStatus {
