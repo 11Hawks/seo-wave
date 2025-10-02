@@ -517,4 +517,247 @@ describe('KeywordDashboard Component', () => {
       expect(exportButton).toBeDisabled()
     })
   })
+
+  describe('Advanced Filtering', () => {
+    const keywordsWithAllFields = [
+      {
+        id: 'kw1',
+        keyword: 'seo analytics platform',
+        projectId: 'proj1',
+        searchVolume: 5400,
+        difficulty: 'MEDIUM' as const,
+        priority: 'high' as const,
+        currentPosition: 8,
+        confidenceScore: 94,
+      },
+      {
+        id: 'kw2',
+        keyword: 'keyword tracking tool',
+        projectId: 'proj1',
+        searchVolume: 2100,
+        difficulty: 'EASY' as const,
+        priority: 'medium' as const,
+        currentPosition: 3,
+        confidenceScore: 96,
+      },
+      {
+        id: 'kw3',
+        keyword: 'rank tracking software',
+        projectId: 'proj1',
+        searchVolume: 8900,
+        difficulty: 'HARD' as const,
+        priority: 'low' as const,
+        currentPosition: 15,
+        confidenceScore: 88,
+      },
+    ]
+
+    it('should render FilterPanel component', () => {
+      render(<KeywordDashboard projectId="proj1" keywords={keywordsWithAllFields} />)
+      
+      expect(screen.getByTestId('filter-panel')).toBeInTheDocument()
+    })
+
+    it('should filter keywords by difficulty', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={keywordsWithAllFields} />)
+      
+      // Check difficulty EASY filter
+      const easyCheckbox = screen.getByTestId('difficulty-easy')
+      await user.click(easyCheckbox)
+      
+      // Should only show EASY difficulty keyword
+      expect(screen.getByTestId('keyword-row-kw2')).toBeInTheDocument()
+      expect(screen.queryByTestId('keyword-row-kw1')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('keyword-row-kw3')).not.toBeInTheDocument()
+    })
+
+    it('should filter keywords by priority', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={keywordsWithAllFields} />)
+      
+      // Check priority high filter
+      const highPriorityCheckbox = screen.getByTestId('priority-high')
+      await user.click(highPriorityCheckbox)
+      
+      // Should only show high priority keyword
+      expect(screen.getByTestId('keyword-row-kw1')).toBeInTheDocument()
+      expect(screen.queryByTestId('keyword-row-kw2')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('keyword-row-kw3')).not.toBeInTheDocument()
+    })
+
+    it('should filter keywords by position range', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={keywordsWithAllFields} />)
+      
+      // Filter positions 1-10
+      const minInput = screen.getByTestId('position-min')
+      const maxInput = screen.getByTestId('position-max')
+      
+      await user.type(minInput, '1')
+      await user.type(maxInput, '10')
+      
+      // Should show keywords with positions 3 and 8
+      expect(screen.getByTestId('keyword-row-kw1')).toBeInTheDocument()
+      expect(screen.getByTestId('keyword-row-kw2')).toBeInTheDocument()
+      expect(screen.queryByTestId('keyword-row-kw3')).not.toBeInTheDocument()
+    })
+
+    it('should filter keywords by search volume range', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={keywordsWithAllFields} />)
+      
+      // Filter volume 5000-10000
+      const minInput = screen.getByTestId('volume-min')
+      const maxInput = screen.getByTestId('volume-max')
+      
+      await user.type(minInput, '5000')
+      await user.type(maxInput, '10000')
+      
+      // Should show keywords with volumes 5400 and 8900
+      expect(screen.getByTestId('keyword-row-kw1')).toBeInTheDocument()
+      expect(screen.getByTestId('keyword-row-kw3')).toBeInTheDocument()
+      expect(screen.queryByTestId('keyword-row-kw2')).not.toBeInTheDocument()
+    })
+
+    it('should combine multiple filter criteria', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={keywordsWithAllFields} />)
+      
+      // Filter: MEDIUM difficulty + high priority + position 1-10
+      await user.click(screen.getByTestId('difficulty-medium'))
+      await user.click(screen.getByTestId('priority-high'))
+      await user.type(screen.getByTestId('position-min'), '1')
+      await user.type(screen.getByTestId('position-max'), '10')
+      
+      // Should only show kw1 (MEDIUM + high + position 8)
+      expect(screen.getByTestId('keyword-row-kw1')).toBeInTheDocument()
+      expect(screen.queryByTestId('keyword-row-kw2')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('keyword-row-kw3')).not.toBeInTheDocument()
+    })
+
+    it('should combine filters with search query', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={keywordsWithAllFields} />)
+      
+      // Search for "tracking" + filter by EASY difficulty
+      const searchInput = screen.getByTestId('search-input')
+      await user.type(searchInput, 'tracking')
+      
+      await user.click(screen.getByTestId('difficulty-easy'))
+      
+      // Should only show kw2 (has "tracking" + EASY)
+      expect(screen.getByTestId('keyword-row-kw2')).toBeInTheDocument()
+      expect(screen.queryByTestId('keyword-row-kw1')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('keyword-row-kw3')).not.toBeInTheDocument()
+    })
+
+    it('should update results count after filtering', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={keywordsWithAllFields} />)
+      
+      // Initially shows all
+      expect(screen.getByText('Showing 3 of 3 keywords')).toBeInTheDocument()
+      
+      // Apply filter
+      await user.click(screen.getByTestId('difficulty-easy'))
+      
+      // Should show filtered count
+      expect(screen.getByText('Showing 1 of 3 keywords')).toBeInTheDocument()
+    })
+
+    it('should reset filters when reset button is clicked', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={keywordsWithAllFields} />)
+      
+      // Apply filters
+      await user.click(screen.getByTestId('difficulty-easy'))
+      await user.click(screen.getByTestId('priority-high'))
+      
+      // Only 0 keywords match (no keyword is both EASY and high priority)
+      expect(screen.queryByTestId('keyword-row-kw1')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('keyword-row-kw2')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('keyword-row-kw3')).not.toBeInTheDocument()
+      
+      // Reset filters
+      await user.click(screen.getByTestId('reset-filters-button'))
+      
+      // Should show all keywords again
+      expect(screen.getByTestId('keyword-row-kw1')).toBeInTheDocument()
+      expect(screen.getByTestId('keyword-row-kw2')).toBeInTheDocument()
+      expect(screen.getByTestId('keyword-row-kw3')).toBeInTheDocument()
+    })
+
+    it('should reset to page 1 when filters change', async () => {
+      const user = userEvent.setup()
+      const manyKeywords = Array.from({ length: 25 }, (_, i) => ({
+        id: `kw${i + 1}`,
+        keyword: `keyword ${i + 1}`,
+        projectId: 'proj1',
+        searchVolume: 1000 + i * 100,
+        currentPosition: i + 1,
+        difficulty: i % 2 === 0 ? 'EASY' as const : 'MEDIUM' as const, // Changed to %2 for more EASY keywords
+        priority: 'medium' as const,
+      }))
+      
+      render(<KeywordDashboard projectId="proj1" keywords={manyKeywords} />)
+      
+      // Go to page 2
+      await user.click(screen.getByTestId('next-page-button'))
+      expect(screen.getByTestId('page-info')).toHaveTextContent('Page 2 of 3')
+      
+      // Apply filter - should have 13 EASY keywords (indices 0,2,4,...,24), which is 2 pages
+      await user.click(screen.getByTestId('difficulty-easy'))
+      
+      // Should reset to page 1
+      expect(screen.getByTestId('page-info')).toHaveTextContent('Page 1 of 2')
+    })
+
+    it('should work with filters and sorting together', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={keywordsWithAllFields} />)
+      
+      // Filter by EASY and MEDIUM difficulty
+      await user.click(screen.getByTestId('difficulty-easy'))
+      await user.click(screen.getByTestId('difficulty-medium'))
+      
+      // Sort by position
+      await user.click(screen.getByTestId('sort-position'))
+      
+      // Should show kw2 first (position 3), then kw1 (position 8)
+      const rows = screen.getAllByTestId(/^keyword-row-/)
+      expect(rows).toHaveLength(2)
+      expect(rows[0]).toHaveAttribute('data-testid', 'keyword-row-kw2')
+      expect(rows[1]).toHaveAttribute('data-testid', 'keyword-row-kw1')
+    })
+
+    it('should handle keywords without filter fields gracefully', async () => {
+      const user = userEvent.setup()
+      const keywordsWithMissingFields = [
+        {
+          id: 'kw1',
+          keyword: 'keyword one',
+          projectId: 'proj1',
+          // No difficulty, priority, position, or volume
+        },
+        {
+          id: 'kw2',
+          keyword: 'keyword two',
+          projectId: 'proj1',
+          difficulty: 'EASY' as const,
+          priority: 'high' as const,
+          currentPosition: 5,
+          searchVolume: 1000,
+        },
+      ]
+      
+      render(<KeywordDashboard projectId="proj1" keywords={keywordsWithMissingFields} />)
+      
+      // Apply filter - kw1 shouldn't match because it has no difficulty
+      await user.click(screen.getByTestId('difficulty-easy'))
+      
+      expect(screen.getByTestId('keyword-row-kw2')).toBeInTheDocument()
+      expect(screen.queryByTestId('keyword-row-kw1')).not.toBeInTheDocument()
+    })
+  })
 })

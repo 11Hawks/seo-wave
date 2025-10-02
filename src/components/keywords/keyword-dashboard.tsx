@@ -8,6 +8,7 @@
 
 import React, { useState, useMemo } from 'react'
 import { exportToCSV } from '@/utils/csv-export'
+import { FilterPanel, FilterCriteria } from './filter-panel'
 
 export interface HistoricalDataPoint {
   date: string
@@ -60,6 +61,12 @@ const KeywordDashboard: React.FC<KeywordDashboardProps> = ({
   const [pageSize, setPageSize] = useState(10)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [filterCriteria, setFilterCriteria] = useState<FilterCriteria>({
+    difficulty: [],
+    priority: [],
+    positionRange: { min: null, max: null },
+    volumeRange: { min: null, max: null }
+  })
 
   // Handle sort
   const handleSort = (field: 'position' | 'volume') => {
@@ -75,13 +82,73 @@ const KeywordDashboard: React.FC<KeywordDashboardProps> = ({
     setCurrentPage(1)
   }
 
-  // Filter keywords by search term
+  // Apply filter criteria to a keyword
+  const applyFilters = (keyword: KeywordData, filters: FilterCriteria): boolean => {
+    // Difficulty filter
+    if (filters.difficulty.length > 0) {
+      if (!keyword.difficulty || !filters.difficulty.includes(keyword.difficulty)) {
+        return false
+      }
+    }
+
+    // Priority filter
+    if (filters.priority.length > 0) {
+      if (!keyword.priority || !filters.priority.includes(keyword.priority)) {
+        return false
+      }
+    }
+
+    // Position range filter
+    const { min: posMin, max: posMax } = filters.positionRange
+    if (posMin !== null || posMax !== null) {
+      const position = keyword.currentPosition
+      if (position === undefined) return false
+      if (posMin !== null && position < posMin) return false
+      if (posMax !== null && position > posMax) return false
+    }
+
+    // Volume range filter
+    const { min: volMin, max: volMax } = filters.volumeRange
+    if (volMin !== null || volMax !== null) {
+      const volume = keyword.searchVolume
+      if (volume === undefined) return false
+      if (volMin !== null && volume < volMin) return false
+      if (volMax !== null && volume > volMax) return false
+    }
+
+    return true
+  }
+
+  // Handle filter changes
+  const handleFilterChange = (filters: FilterCriteria) => {
+    // Check if filters actually changed
+    const filtersChanged = 
+      JSON.stringify(filterCriteria) !== JSON.stringify(filters)
+    
+    setFilterCriteria(filters)
+    
+    // Reset to first page only when filters actually change (not on initial mount)
+    if (filtersChanged) {
+      setCurrentPage(1)
+    }
+  }
+
+  // Filter keywords by search term and filter criteria
   const filteredKeywords = useMemo(() => {
-    if (!searchTerm) return keywords
-    return keywords.filter(kw => 
-      kw.keyword.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  }, [keywords, searchTerm])
+    let result = keywords
+
+    // Apply search filter
+    if (searchTerm) {
+      result = result.filter(kw => 
+        kw.keyword.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    }
+
+    // Apply advanced filters
+    result = result.filter(kw => applyFilters(kw, filterCriteria))
+
+    return result
+  }, [keywords, searchTerm, filterCriteria])
 
   // Sort filtered keywords
   const sortedKeywords = useMemo(() => {
@@ -233,6 +300,9 @@ const KeywordDashboard: React.FC<KeywordDashboardProps> = ({
           Add Keyword
         </button>
       </div>
+
+      {/* Filter Panel */}
+      <FilterPanel onFilterChange={handleFilterChange} />
 
       {/* Bulk actions toolbar */}
       {selectedIds.length > 0 && (
