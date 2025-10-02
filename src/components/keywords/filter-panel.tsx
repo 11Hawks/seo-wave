@@ -10,11 +10,13 @@ export interface FilterCriteria {
 interface FilterPanelProps {
   onFilterChange: (filters: FilterCriteria) => void
   collapsible?: boolean
+  value?: FilterCriteria // Controlled mode: parent can pass filter values
 }
 
 export const FilterPanel: React.FC<FilterPanelProps> = ({
   onFilterChange,
-  collapsible = false
+  collapsible = false,
+  value
 }) => {
   const [isExpanded, setIsExpanded] = useState(true)
   const [filters, setFilters] = useState<FilterCriteria>({
@@ -24,65 +26,98 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     volumeRange: { min: null, max: null }
   })
 
-  // Notify parent of filter changes
+  // Use controlled value if provided, otherwise use internal state
+  const effectiveFilters = value !== undefined ? value : filters
+
+  // Notify parent of filter changes (only for uncontrolled mode)
   useEffect(() => {
-    onFilterChange(filters)
-  }, [filters, onFilterChange])
+    if (value === undefined) {
+      onFilterChange(filters)
+    }
+  }, [filters, onFilterChange, value])
 
   // Toggle difficulty filter
   const toggleDifficulty = (level: string) => {
-    setFilters(prev => {
-      const difficulty = prev.difficulty.includes(level)
-        ? prev.difficulty.filter(d => d !== level)
-        : [...prev.difficulty, level]
-      return { ...prev, difficulty }
-    })
+    const newDifficulty = effectiveFilters.difficulty.includes(level)
+      ? effectiveFilters.difficulty.filter(d => d !== level)
+      : [...effectiveFilters.difficulty, level]
+    const newFilters = { ...effectiveFilters, difficulty: newDifficulty }
+    
+    if (value !== undefined) {
+      // Controlled mode: notify parent immediately
+      onFilterChange(newFilters)
+    } else {
+      // Uncontrolled mode: update internal state
+      setFilters(newFilters)
+    }
   }
 
   // Toggle priority filter
   const togglePriority = (level: string) => {
-    setFilters(prev => {
-      const priority = prev.priority.includes(level)
-        ? prev.priority.filter(p => p !== level)
-        : [...prev.priority, level]
-      return { ...prev, priority }
-    })
+    const newPriority = effectiveFilters.priority.includes(level)
+      ? effectiveFilters.priority.filter(p => p !== level)
+      : [...effectiveFilters.priority, level]
+    const newFilters = { ...effectiveFilters, priority: newPriority }
+    
+    if (value !== undefined) {
+      onFilterChange(newFilters)
+    } else {
+      setFilters(newFilters)
+    }
   }
 
   // Handle position range
-  const handlePositionChange = (type: 'min' | 'max', value: string) => {
-    const numValue = value === '' ? null : parseInt(value, 10)
-    setFilters(prev => ({
-      ...prev,
-      positionRange: { ...prev.positionRange, [type]: numValue }
-    }))
+  const handlePositionChange = (type: 'min' | 'max', inputValue: string) => {
+    const numValue = inputValue === '' ? null : parseInt(inputValue, 10)
+    const newFilters = {
+      ...effectiveFilters,
+      positionRange: { ...effectiveFilters.positionRange, [type]: numValue }
+    }
+    
+    if (value !== undefined) {
+      onFilterChange(newFilters)
+    } else {
+      setFilters(newFilters)
+    }
   }
 
   // Handle volume range
-  const handleVolumeChange = (type: 'min' | 'max', value: string) => {
-    const numValue = value === '' ? null : parseInt(value, 10)
-    setFilters(prev => ({
-      ...prev,
-      volumeRange: { ...prev.volumeRange, [type]: numValue }
-    }))
+  const handleVolumeChange = (type: 'min' | 'max', inputValue: string) => {
+    const numValue = inputValue === '' ? null : parseInt(inputValue, 10)
+    const newFilters = {
+      ...effectiveFilters,
+      volumeRange: { ...effectiveFilters.volumeRange, [type]: numValue }
+    }
+    
+    if (value !== undefined) {
+      onFilterChange(newFilters)
+    } else {
+      setFilters(newFilters)
+    }
   }
 
   // Reset all filters
   const handleReset = () => {
-    setFilters({
+    const emptyFilters = {
       difficulty: [],
       priority: [],
       positionRange: { min: null, max: null },
       volumeRange: { min: null, max: null }
-    })
+    }
+    
+    if (value !== undefined) {
+      onFilterChange(emptyFilters)
+    } else {
+      setFilters(emptyFilters)
+    }
   }
 
   // Count active filters
   const activeFilterCount = 
-    filters.difficulty.length +
-    filters.priority.length +
-    (filters.positionRange.min !== null || filters.positionRange.max !== null ? 1 : 0) +
-    (filters.volumeRange.min !== null || filters.volumeRange.max !== null ? 1 : 0)
+    effectiveFilters.difficulty.length +
+    effectiveFilters.priority.length +
+    (effectiveFilters.positionRange.min !== null || effectiveFilters.positionRange.max !== null ? 1 : 0) +
+    (effectiveFilters.volumeRange.min !== null || effectiveFilters.volumeRange.max !== null ? 1 : 0)
 
   return (
     <div data-testid="filter-panel" className="bg-white border rounded-lg p-4">
@@ -132,7 +167,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
                   <input
                     type="checkbox"
                     data-testid={`difficulty-${level.toLowerCase()}`}
-                    checked={filters.difficulty.includes(level)}
+                    checked={effectiveFilters.difficulty.includes(level)}
                     onChange={() => toggleDifficulty(level)}
                     className="rounded"
                   />
@@ -151,7 +186,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
                   <input
                     type="checkbox"
                     data-testid={`priority-${level}`}
-                    checked={filters.priority.includes(level)}
+                    checked={effectiveFilters.priority.includes(level)}
                     onChange={() => togglePriority(level)}
                     className="rounded"
                   />
@@ -169,7 +204,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
                 type="number"
                 data-testid="position-min"
                 placeholder="Min"
-                value={filters.positionRange.min ?? ''}
+                value={effectiveFilters.positionRange.min ?? ''}
                 onChange={(e) => handlePositionChange('min', e.target.value)}
                 className="w-20 px-2 py-1 border rounded text-sm"
                 min="1"
@@ -179,7 +214,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
                 type="number"
                 data-testid="position-max"
                 placeholder="Max"
-                value={filters.positionRange.max ?? ''}
+                value={effectiveFilters.positionRange.max ?? ''}
                 onChange={(e) => handlePositionChange('max', e.target.value)}
                 className="w-20 px-2 py-1 border rounded text-sm"
                 min="1"
@@ -195,7 +230,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
                 type="number"
                 data-testid="volume-min"
                 placeholder="Min"
-                value={filters.volumeRange.min ?? ''}
+                value={effectiveFilters.volumeRange.min ?? ''}
                 onChange={(e) => handleVolumeChange('min', e.target.value)}
                 className="w-24 px-2 py-1 border rounded text-sm"
                 min="0"
@@ -205,7 +240,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
                 type="number"
                 data-testid="volume-max"
                 placeholder="Max"
-                value={filters.volumeRange.max ?? ''}
+                value={effectiveFilters.volumeRange.max ?? ''}
                 onChange={(e) => handleVolumeChange('max', e.target.value)}
                 className="w-24 px-2 py-1 border rounded text-sm"
                 min="0"

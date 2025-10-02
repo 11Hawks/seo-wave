@@ -760,4 +760,201 @@ describe('KeywordDashboard Component', () => {
       expect(screen.queryByTestId('keyword-row-kw1')).not.toBeInTheDocument()
     })
   })
+
+  describe('Filter UX Enhancements', () => {
+    const keywordsWithAllFields = [
+      {
+        id: 'kw1',
+        keyword: 'seo analytics platform',
+        projectId: 'proj1',
+        searchVolume: 5400,
+        difficulty: 'MEDIUM' as const,
+        priority: 'high' as const,
+        currentPosition: 8,
+        confidenceScore: 94,
+      },
+      {
+        id: 'kw2',
+        keyword: 'keyword tracking tool',
+        projectId: 'proj1',
+        searchVolume: 2100,
+        difficulty: 'EASY' as const,
+        priority: 'medium' as const,
+        currentPosition: 3,
+        confidenceScore: 96,
+      },
+      {
+        id: 'kw3',
+        keyword: 'rank tracking software',
+        projectId: 'proj1',
+        searchVolume: 8900,
+        difficulty: 'HARD' as const,
+        priority: 'low' as const,
+        currentPosition: 15,
+        confidenceScore: 88,
+      },
+    ]
+
+    it('should show filter summary chips when filters are active', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={keywordsWithAllFields} />)
+      
+      // Apply some filters
+      await user.click(screen.getByTestId('difficulty-easy'))
+      await user.click(screen.getByTestId('priority-high'))
+      
+      // Should show filter summary chips
+      expect(screen.getByTestId('filter-summary')).toBeInTheDocument()
+      expect(screen.getByTestId('filter-chip-difficulty')).toHaveTextContent('Difficulty: EASY')
+      expect(screen.getByTestId('filter-chip-priority')).toHaveTextContent('Priority: high')
+    })
+
+    it('should remove individual filter chip when clicked', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={keywordsWithAllFields} />)
+      
+      // Apply filters
+      await user.click(screen.getByTestId('difficulty-easy'))
+      await user.click(screen.getByTestId('priority-high'))
+      
+      // Remove difficulty filter via chip
+      const difficultyChip = screen.getByTestId('filter-chip-difficulty')
+      const removeButton = difficultyChip.querySelector('[data-testid="remove-filter-difficulty"]')
+      if (removeButton) await user.click(removeButton)
+      
+      // Difficulty filter should be removed
+      expect(screen.queryByTestId('filter-chip-difficulty')).not.toBeInTheDocument()
+      // Priority filter should still be there
+      expect(screen.getByTestId('filter-chip-priority')).toBeInTheDocument()
+    })
+
+    it('should show "Clear All Filters" button when filters are active', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={keywordsWithAllFields} />)
+      
+      // Initially no clear button in toolbar
+      expect(screen.queryByTestId('clear-all-filters-button')).not.toBeInTheDocument()
+      
+      // Apply a filter
+      await user.click(screen.getByTestId('difficulty-easy'))
+      
+      // Clear button should appear
+      expect(screen.getByTestId('clear-all-filters-button')).toBeInTheDocument()
+    })
+
+    it('should clear all filters when "Clear All" button is clicked', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={keywordsWithAllFields} />)
+      
+      // Apply multiple filters
+      await user.click(screen.getByTestId('difficulty-easy'))
+      await user.click(screen.getByTestId('priority-high'))
+      await user.type(screen.getByTestId('position-min'), '1')
+      
+      // Should show filtered results
+      expect(screen.getByTestId('filter-summary')).toBeInTheDocument()
+      
+      // Click clear all
+      await user.click(screen.getByTestId('clear-all-filters-button'))
+      
+      // All keywords should be visible again
+      expect(screen.getByTestId('keyword-row-kw1')).toBeInTheDocument()
+      expect(screen.getByTestId('keyword-row-kw2')).toBeInTheDocument()
+      expect(screen.getByTestId('keyword-row-kw3')).toBeInTheDocument()
+      
+      // Filter summary should be gone
+      expect(screen.queryByTestId('filter-summary')).not.toBeInTheDocument()
+    })
+
+    it('should show empty state when filters return no results', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={keywordsWithAllFields} />)
+      
+      // Apply filters that match nothing (EASY + high priority don't overlap)
+      await user.click(screen.getByTestId('difficulty-easy'))
+      await user.click(screen.getByTestId('priority-high'))
+      
+      // Should show empty filtered state
+      expect(screen.getByTestId('filtered-empty-state')).toBeInTheDocument()
+      expect(screen.getByText(/no keywords match your filters/i)).toBeInTheDocument()
+      
+      // Should have button to clear filters
+      expect(screen.getByTestId('clear-filters-from-empty')).toBeInTheDocument()
+    })
+
+    it('should clear filters from empty state button', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={keywordsWithAllFields} />)
+      
+      // Apply conflicting filters
+      await user.click(screen.getByTestId('difficulty-easy'))
+      await user.click(screen.getByTestId('priority-high'))
+      
+      // Empty state appears
+      expect(screen.getByTestId('filtered-empty-state')).toBeInTheDocument()
+      
+      // Click clear from empty state
+      await user.click(screen.getByTestId('clear-filters-from-empty'))
+      
+      // Should show all keywords again
+      expect(screen.queryByTestId('filtered-empty-state')).not.toBeInTheDocument()
+      expect(screen.getByTestId('keyword-row-kw1')).toBeInTheDocument()
+      expect(screen.getByTestId('keyword-row-kw2')).toBeInTheDocument()
+      expect(screen.getByTestId('keyword-row-kw3')).toBeInTheDocument()
+    })
+
+    it('should show filter summary for position range', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={keywordsWithAllFields} />)
+      
+      // Apply position range filter
+      await user.type(screen.getByTestId('position-min'), '1')
+      await user.type(screen.getByTestId('position-max'), '10')
+      
+      // Should show position range chip
+      expect(screen.getByTestId('filter-chip-position')).toBeInTheDocument()
+      expect(screen.getByTestId('filter-chip-position')).toHaveTextContent('Position: 1-10')
+    })
+
+    it('should show filter summary for volume range', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={keywordsWithAllFields} />)
+      
+      // Apply volume range filter
+      await user.type(screen.getByTestId('volume-min'), '5000')
+      await user.type(screen.getByTestId('volume-max'), '10000')
+      
+      // Should show volume range chip
+      expect(screen.getByTestId('filter-chip-volume')).toBeInTheDocument()
+      expect(screen.getByTestId('filter-chip-volume')).toHaveTextContent('Volume: 5000-10000')
+    })
+
+    it('should show multiple values in difficulty chip when multiple selected', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={keywordsWithAllFields} />)
+      
+      // Select multiple difficulties
+      await user.click(screen.getByTestId('difficulty-easy'))
+      await user.click(screen.getByTestId('difficulty-medium'))
+      
+      // Should show both in chip
+      expect(screen.getByTestId('filter-chip-difficulty')).toBeInTheDocument()
+      expect(screen.getByTestId('filter-chip-difficulty')).toHaveTextContent('Difficulty: EASY, MEDIUM')
+    })
+
+    it('should hide filter summary when all filters are cleared', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={keywordsWithAllFields} />)
+      
+      // Apply filter
+      await user.click(screen.getByTestId('difficulty-easy'))
+      expect(screen.getByTestId('filter-summary')).toBeInTheDocument()
+      
+      // Clear via reset button
+      await user.click(screen.getByTestId('reset-filters-button'))
+      
+      // Filter summary should be gone
+      expect(screen.queryByTestId('filter-summary')).not.toBeInTheDocument()
+    })
+  })
 })

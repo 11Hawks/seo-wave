@@ -133,6 +133,38 @@ const KeywordDashboard: React.FC<KeywordDashboardProps> = ({
     }
   }
 
+  // Clear all filters
+  const handleClearAllFilters = () => {
+    setFilterCriteria({
+      difficulty: [],
+      priority: [],
+      positionRange: { min: null, max: null },
+      volumeRange: { min: null, max: null }
+    })
+  }
+
+  // Remove individual filter
+  const removeFilter = (filterType: 'difficulty' | 'priority' | 'position' | 'volume') => {
+    if (filterType === 'difficulty') {
+      setFilterCriteria(prev => ({ ...prev, difficulty: [] }))
+    } else if (filterType === 'priority') {
+      setFilterCriteria(prev => ({ ...prev, priority: [] }))
+    } else if (filterType === 'position') {
+      setFilterCriteria(prev => ({ ...prev, positionRange: { min: null, max: null } }))
+    } else if (filterType === 'volume') {
+      setFilterCriteria(prev => ({ ...prev, volumeRange: { min: null, max: null } }))
+    }
+  }
+
+  // Check if any filters are active
+  const hasActiveFilters = 
+    filterCriteria.difficulty.length > 0 ||
+    filterCriteria.priority.length > 0 ||
+    filterCriteria.positionRange.min !== null ||
+    filterCriteria.positionRange.max !== null ||
+    filterCriteria.volumeRange.min !== null ||
+    filterCriteria.volumeRange.max !== null
+
   // Filter keywords by search term and filter criteria
   const filteredKeywords = useMemo(() => {
     let result = keywords
@@ -284,6 +316,16 @@ const KeywordDashboard: React.FC<KeywordDashboardProps> = ({
           onChange={(e) => handleSearch(e.target.value)}
           className="flex-1 px-4 py-2 border rounded"
         />
+        {hasActiveFilters && (
+          <button
+            data-testid="clear-all-filters-button"
+            onClick={handleClearAllFilters}
+            className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 flex items-center gap-2"
+          >
+            <span>✕</span>
+            Clear Filters
+          </button>
+        )}
         <button
           data-testid="export-button"
           onClick={handleExport}
@@ -302,7 +344,81 @@ const KeywordDashboard: React.FC<KeywordDashboardProps> = ({
       </div>
 
       {/* Filter Panel */}
-      <FilterPanel onFilterChange={handleFilterChange} />
+      <FilterPanel value={filterCriteria} onFilterChange={handleFilterChange} />
+
+      {/* Filter Summary Chips */}
+      {hasActiveFilters && (
+        <div data-testid="filter-summary" className="flex flex-wrap gap-2">
+          {filterCriteria.difficulty.length > 0 && (
+            <div
+              data-testid="filter-chip-difficulty"
+              className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
+            >
+              <span>Difficulty: {filterCriteria.difficulty.join(', ')}</span>
+              <button
+                data-testid="remove-filter-difficulty"
+                onClick={() => removeFilter('difficulty')}
+                className="hover:text-blue-900 font-bold"
+                aria-label="Remove difficulty filter"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+          {filterCriteria.priority.length > 0 && (
+            <div
+              data-testid="filter-chip-priority"
+              className="inline-flex items-center gap-2 px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm"
+            >
+              <span>Priority: {filterCriteria.priority.join(', ')}</span>
+              <button
+                data-testid="remove-filter-priority"
+                onClick={() => removeFilter('priority')}
+                className="hover:text-purple-900 font-bold"
+                aria-label="Remove priority filter"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+          {(filterCriteria.positionRange.min !== null || filterCriteria.positionRange.max !== null) && (
+            <div
+              data-testid="filter-chip-position"
+              className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm"
+            >
+              <span>
+                Position: {filterCriteria.positionRange.min ?? '∞'}-{filterCriteria.positionRange.max ?? '∞'}
+              </span>
+              <button
+                data-testid="remove-filter-position"
+                onClick={() => removeFilter('position')}
+                className="hover:text-green-900 font-bold"
+                aria-label="Remove position filter"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+          {(filterCriteria.volumeRange.min !== null || filterCriteria.volumeRange.max !== null) && (
+            <div
+              data-testid="filter-chip-volume"
+              className="inline-flex items-center gap-2 px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm"
+            >
+              <span>
+                Volume: {filterCriteria.volumeRange.min ?? '0'}-{filterCriteria.volumeRange.max ?? '∞'}
+              </span>
+              <button
+                data-testid="remove-filter-volume"
+                onClick={() => removeFilter('volume')}
+                className="hover:text-orange-900 font-bold"
+                aria-label="Remove volume filter"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Bulk actions toolbar */}
       {selectedIds.length > 0 && (
@@ -321,45 +437,66 @@ const KeywordDashboard: React.FC<KeywordDashboardProps> = ({
       )}
 
       {/* Sort controls */}
-      <div className="flex items-center gap-4">
-        <input
-          type="checkbox"
-          data-testid="select-all-checkbox"
-          checked={isAllSelected}
-          onChange={handleSelectAll}
-          className="w-4 h-4 cursor-pointer"
-        />
-        <span className="text-sm text-gray-600">Select all</span>
-        <span className="text-sm text-gray-600">Sort by:</span>
-        <button
-          data-testid="sort-position"
-          onClick={() => handleSort('position')}
-          className="px-3 py-1 border rounded hover:bg-gray-50 text-sm"
-        >
-          Position
-          {sortField === 'position' && (
-            <span data-testid="sort-indicator-position" className="ml-1">
-              {sortOrder === 'asc' ? '↑' : '↓'}
-            </span>
-          )}
-        </button>
-        <button
-          data-testid="sort-volume"
-          onClick={() => handleSort('volume')}
-          className="px-3 py-1 border rounded hover:bg-gray-50 text-sm"
-        >
-          Volume
-          {sortField === 'volume' && (
-            <span data-testid="sort-indicator-volume" className="ml-1">
-              {sortOrder === 'asc' ? '↑' : '↓'}
-            </span>
-          )}
-        </button>
-      </div>
+      {sortedKeywords.length > 0 && (
+        <div className="flex items-center gap-4">
+          <input
+            type="checkbox"
+            data-testid="select-all-checkbox"
+            checked={isAllSelected}
+            onChange={handleSelectAll}
+            className="w-4 h-4 cursor-pointer"
+          />
+          <span className="text-sm text-gray-600">Select all</span>
+          <span className="text-sm text-gray-600">Sort by:</span>
+          <button
+            data-testid="sort-position"
+            onClick={() => handleSort('position')}
+            className="px-3 py-1 border rounded hover:bg-gray-50 text-sm"
+          >
+            Position
+            {sortField === 'position' && (
+              <span data-testid="sort-indicator-position" className="ml-1">
+                {sortOrder === 'asc' ? '↑' : '↓'}
+              </span>
+            )}
+          </button>
+          <button
+            data-testid="sort-volume"
+            onClick={() => handleSort('volume')}
+            className="px-3 py-1 border rounded hover:bg-gray-50 text-sm"
+          >
+            Volume
+            {sortField === 'volume' && (
+              <span data-testid="sort-indicator-volume" className="ml-1">
+                {sortOrder === 'asc' ? '↑' : '↓'}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* Filtered Empty State */}
+      {sortedKeywords.length === 0 && hasActiveFilters && (
+        <div data-testid="filtered-empty-state" className="p-8 text-center bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+          <div className="text-gray-400 text-5xl mb-4">🔍</div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">No keywords match your filters</h3>
+          <p className="text-gray-600 mb-4">
+            Try adjusting your filter criteria to see more results
+          </p>
+          <button
+            data-testid="clear-filters-from-empty"
+            onClick={handleClearAllFilters}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Clear All Filters
+          </button>
+        </div>
+      )}
 
       {/* Keyword List */}
-      <div data-testid="keyword-list" className="space-y-2">
-        {paginatedKeywords.map((keyword) => (
+      {sortedKeywords.length > 0 && (
+        <div data-testid="keyword-list" className="space-y-2">
+          {paginatedKeywords.map((keyword) => (
           <div
             key={keyword.id}
             data-testid={`keyword-row-${keyword.id}`}
@@ -407,7 +544,8 @@ const KeywordDashboard: React.FC<KeywordDashboardProps> = ({
             </div>
           </div>
         ))}
-      </div>
+        </div>
+      )}
 
       {/* Results count */}
       {sortedKeywords.length > 0 && (
