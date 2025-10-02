@@ -153,4 +153,155 @@ describe('KeywordDashboard Component', () => {
       expect(downTrend).toHaveClass('trend-down')
     })
   })
+
+  describe('Sorting Functionality', () => {
+    it('should sort keywords by position ascending', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={mockKeywords} />)
+      
+      const sortButton = screen.getByTestId('sort-position')
+      await user.click(sortButton)
+      
+      // After sorting by position (ascending), kw2 should be first
+      const rows = screen.getAllByTestId(/^keyword-row-/)
+      expect(rows[0]).toHaveAttribute('data-testid', 'keyword-row-kw2') // position 3
+    })
+
+    it('should toggle sort order on second click', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={mockKeywords} />)
+      
+      const sortButton = screen.getByTestId('sort-position')
+      
+      // First click - ascending
+      await user.click(sortButton)
+      let rows = screen.getAllByTestId(/^keyword-row-/)
+      expect(rows[0]).toHaveAttribute('data-testid', 'keyword-row-kw2') // position 3
+      
+      // Second click - descending
+      await user.click(sortButton)
+      rows = screen.getAllByTestId(/^keyword-row-/)
+      expect(rows[0]).toHaveAttribute('data-testid', 'keyword-row-kw3') // position 15
+    })
+
+    it('should sort keywords by search volume', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={mockKeywords} />)
+      
+      const sortButton = screen.getByTestId('sort-volume')
+      await user.click(sortButton)
+      
+      // After sorting by volume (ascending), kw2 should be first
+      const rows = screen.getAllByTestId(/^keyword-row-/)
+      expect(rows[0]).toHaveAttribute('data-testid', 'keyword-row-kw2') // volume 2100
+    })
+
+    it('should display sort indicators', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={mockKeywords} />)
+      
+      const sortButton = screen.getByTestId('sort-position')
+      await user.click(sortButton)
+      
+      expect(screen.getByTestId('sort-indicator-position')).toHaveTextContent('↑')
+    })
+  })
+
+  describe('Pagination', () => {
+    const manyKeywords = Array.from({ length: 25 }, (_, i) => ({
+      id: `kw${i + 1}`,
+      keyword: `keyword ${i + 1}`,
+      projectId: 'proj1',
+      searchVolume: 1000 + i * 100,
+      currentPosition: i + 1,
+    }))
+
+    it('should display pagination controls when keywords exceed page size', () => {
+      render(<KeywordDashboard projectId="proj1" keywords={manyKeywords} />)
+      
+      expect(screen.getByTestId('pagination-controls')).toBeInTheDocument()
+      expect(screen.getByTestId('page-info')).toHaveTextContent('Page 1 of 3')
+    })
+
+    it('should show only first page of keywords initially', () => {
+      render(<KeywordDashboard projectId="proj1" keywords={manyKeywords} />)
+      
+      // Should show first 10 keywords
+      expect(screen.getByTestId('keyword-row-kw1')).toBeInTheDocument()
+      expect(screen.getByTestId('keyword-row-kw10')).toBeInTheDocument()
+      
+      // Should not show 11th keyword
+      expect(screen.queryByTestId('keyword-row-kw11')).not.toBeInTheDocument()
+    })
+
+    it('should navigate to next page', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={manyKeywords} />)
+      
+      const nextButton = screen.getByTestId('next-page-button')
+      await user.click(nextButton)
+      
+      // Should show second page keywords
+      expect(screen.getByTestId('keyword-row-kw11')).toBeInTheDocument()
+      expect(screen.getByTestId('keyword-row-kw20')).toBeInTheDocument()
+      
+      // Should not show first page keywords
+      expect(screen.queryByTestId('keyword-row-kw1')).not.toBeInTheDocument()
+      
+      // Page info should update
+      expect(screen.getByTestId('page-info')).toHaveTextContent('Page 2 of 3')
+    })
+
+    it('should navigate to previous page', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={manyKeywords} />)
+      
+      const nextButton = screen.getByTestId('next-page-button')
+      const prevButton = screen.getByTestId('prev-page-button')
+      
+      // Go to page 2
+      await user.click(nextButton)
+      expect(screen.getByTestId('page-info')).toHaveTextContent('Page 2 of 3')
+      
+      // Go back to page 1
+      await user.click(prevButton)
+      expect(screen.getByTestId('page-info')).toHaveTextContent('Page 1 of 3')
+      expect(screen.getByTestId('keyword-row-kw1')).toBeInTheDocument()
+    })
+
+    it('should disable previous button on first page', () => {
+      render(<KeywordDashboard projectId="proj1" keywords={manyKeywords} />)
+      
+      const prevButton = screen.getByTestId('prev-page-button')
+      expect(prevButton).toBeDisabled()
+    })
+
+    it('should disable next button on last page', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={manyKeywords} />)
+      
+      const nextButton = screen.getByTestId('next-page-button')
+      
+      // Navigate to last page (page 3)
+      await user.click(nextButton) // page 2
+      await user.click(nextButton) // page 3
+      
+      expect(nextButton).toBeDisabled()
+    })
+
+    it('should change page size', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={manyKeywords} />)
+      
+      const pageSizeSelect = screen.getByTestId('page-size-select')
+      await user.selectOptions(pageSizeSelect, '20')
+      
+      // Should show 20 keywords now
+      expect(screen.getByTestId('keyword-row-kw1')).toBeInTheDocument()
+      expect(screen.getByTestId('keyword-row-kw20')).toBeInTheDocument()
+      
+      // Page info should update
+      expect(screen.getByTestId('page-info')).toHaveTextContent('Page 1 of 2')
+    })
+  })
 })

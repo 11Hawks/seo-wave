@@ -42,6 +42,24 @@ const KeywordDashboard: React.FC<KeywordDashboardProps> = ({
   error,
 }) => {
   const [searchTerm, setSearchTerm] = useState('')
+  const [sortField, setSortField] = useState<'position' | 'volume' | null>(null)
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
+  // Handle sort
+  const handleSort = (field: 'position' | 'volume') => {
+    if (sortField === field) {
+      // Toggle order
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+    } else {
+      // New field, default to ascending
+      setSortField(field)
+      setSortOrder('asc')
+    }
+    // Reset to first page when sorting changes
+    setCurrentPage(1)
+  }
 
   // Filter keywords by search term
   const filteredKeywords = useMemo(() => {
@@ -50,6 +68,44 @@ const KeywordDashboard: React.FC<KeywordDashboardProps> = ({
       kw.keyword.toLowerCase().includes(searchTerm.toLowerCase())
     )
   }, [keywords, searchTerm])
+
+  // Sort filtered keywords
+  const sortedKeywords = useMemo(() => {
+    if (!sortField) return filteredKeywords
+
+    return [...filteredKeywords].sort((a, b) => {
+      let aValue: number
+      let bValue: number
+
+      if (sortField === 'position') {
+        aValue = a.currentPosition || 999
+        bValue = b.currentPosition || 999
+      } else {
+        aValue = a.searchVolume || 0
+        bValue = b.searchVolume || 0
+      }
+
+      if (sortOrder === 'asc') {
+        return aValue - bValue
+      } else {
+        return bValue - aValue
+      }
+    })
+  }, [filteredKeywords, sortField, sortOrder])
+
+  // Paginate sorted keywords
+  const totalPages = Math.ceil(sortedKeywords.length / pageSize)
+  const paginatedKeywords = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize
+    const endIndex = startIndex + pageSize
+    return sortedKeywords.slice(startIndex, endIndex)
+  }, [sortedKeywords, currentPage, pageSize])
+
+  // Reset to page 1 when search changes
+  const handleSearch = (value: string) => {
+    setSearchTerm(value)
+    setCurrentPage(1)
+  }
 
   // Loading state
   if (isLoading) {
@@ -101,7 +157,7 @@ const KeywordDashboard: React.FC<KeywordDashboardProps> = ({
           data-testid="search-input"
           placeholder="Search keywords..."
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          onChange={(e) => handleSearch(e.target.value)}
           className="flex-1 px-4 py-2 border rounded"
         />
         <button 
@@ -112,9 +168,38 @@ const KeywordDashboard: React.FC<KeywordDashboardProps> = ({
         </button>
       </div>
 
+      {/* Sort controls */}
+      <div className="flex items-center gap-4">
+        <span className="text-sm text-gray-600">Sort by:</span>
+        <button
+          data-testid="sort-position"
+          onClick={() => handleSort('position')}
+          className="px-3 py-1 border rounded hover:bg-gray-50 text-sm"
+        >
+          Position
+          {sortField === 'position' && (
+            <span data-testid="sort-indicator-position" className="ml-1">
+              {sortOrder === 'asc' ? '↑' : '↓'}
+            </span>
+          )}
+        </button>
+        <button
+          data-testid="sort-volume"
+          onClick={() => handleSort('volume')}
+          className="px-3 py-1 border rounded hover:bg-gray-50 text-sm"
+        >
+          Volume
+          {sortField === 'volume' && (
+            <span data-testid="sort-indicator-volume" className="ml-1">
+              {sortOrder === 'asc' ? '↑' : '↓'}
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* Keyword List */}
       <div data-testid="keyword-list" className="space-y-2">
-        {filteredKeywords.map((keyword) => (
+        {paginatedKeywords.map((keyword) => (
           <div
             key={keyword.id}
             data-testid={`keyword-row-${keyword.id}`}
@@ -155,9 +240,55 @@ const KeywordDashboard: React.FC<KeywordDashboardProps> = ({
       </div>
 
       {/* Results count */}
-      {filteredKeywords.length > 0 && (
+      {sortedKeywords.length > 0 && (
         <div data-testid="results-count" className="text-sm text-gray-600">
-          Showing {filteredKeywords.length} of {keywords.length} keywords
+          Showing {sortedKeywords.length} of {keywords.length} keywords
+        </div>
+      )}
+
+      {/* Pagination controls */}
+      {totalPages > 1 && (
+        <div data-testid="pagination-controls" className="flex items-center justify-between border-t pt-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">Page size:</span>
+            <select
+              data-testid="page-size-select"
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value))
+                setCurrentPage(1)
+              }}
+              className="px-2 py-1 border rounded text-sm"
+            >
+              <option value="10">10</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <span data-testid="page-info" className="text-sm text-gray-600">
+              Page {currentPage} of {totalPages}
+            </span>
+            <div className="flex gap-2">
+              <button
+                data-testid="prev-page-button"
+                onClick={() => setCurrentPage(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="px-3 py-1 border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              >
+                Previous
+              </button>
+              <button
+                data-testid="next-page-button"
+                onClick={() => setCurrentPage(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              >
+                Next
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
