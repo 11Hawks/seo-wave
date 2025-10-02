@@ -304,4 +304,148 @@ describe('KeywordDashboard Component', () => {
       expect(screen.getByTestId('page-info')).toHaveTextContent('Page 1 of 2')
     })
   })
+
+  describe('Bulk Actions', () => {
+    it('should display checkbox for each keyword row', () => {
+      render(<KeywordDashboard projectId="proj1" keywords={mockKeywords} />)
+      
+      expect(screen.getByTestId('checkbox-kw1')).toBeInTheDocument()
+      expect(screen.getByTestId('checkbox-kw2')).toBeInTheDocument()
+      expect(screen.getByTestId('checkbox-kw3')).toBeInTheDocument()
+    })
+
+    it('should select individual keyword on checkbox click', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={mockKeywords} />)
+      
+      const checkbox = screen.getByTestId('checkbox-kw1')
+      await user.click(checkbox)
+      
+      expect(checkbox).toBeChecked()
+      expect(screen.getByTestId('selected-count')).toHaveTextContent('1 selected')
+    })
+
+    it('should select all keywords with select-all checkbox', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={mockKeywords} />)
+      
+      const selectAllCheckbox = screen.getByTestId('select-all-checkbox')
+      await user.click(selectAllCheckbox)
+      
+      expect(screen.getByTestId('checkbox-kw1')).toBeChecked()
+      expect(screen.getByTestId('checkbox-kw2')).toBeChecked()
+      expect(screen.getByTestId('checkbox-kw3')).toBeChecked()
+      expect(screen.getByTestId('selected-count')).toHaveTextContent('3 selected')
+    })
+
+    it('should deselect all when select-all is clicked again', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={mockKeywords} />)
+      
+      const selectAllCheckbox = screen.getByTestId('select-all-checkbox')
+      
+      // Select all
+      await user.click(selectAllCheckbox)
+      expect(screen.getByTestId('checkbox-kw1')).toBeChecked()
+      
+      // Deselect all
+      await user.click(selectAllCheckbox)
+      expect(screen.getByTestId('checkbox-kw1')).not.toBeChecked()
+      expect(screen.queryByTestId('selected-count')).not.toBeInTheDocument()
+    })
+
+    it('should show bulk action toolbar when keywords are selected', async () => {
+      const user = userEvent.setup()
+      render(<KeywordDashboard projectId="proj1" keywords={mockKeywords} />)
+      
+      // Initially hidden
+      expect(screen.queryByTestId('bulk-actions-toolbar')).not.toBeInTheDocument()
+      
+      // Select a keyword
+      const checkbox = screen.getByTestId('checkbox-kw1')
+      await user.click(checkbox)
+      
+      // Toolbar should appear
+      expect(screen.getByTestId('bulk-actions-toolbar')).toBeInTheDocument()
+      expect(screen.getByTestId('bulk-delete-button')).toBeInTheDocument()
+    })
+
+    it('should call onDelete with selected IDs when bulk delete is clicked', async () => {
+      const user = userEvent.setup()
+      const mockOnDelete = vi.fn()
+      render(
+        <KeywordDashboard 
+          projectId="proj1" 
+          keywords={mockKeywords}
+          onBulkDelete={mockOnDelete}
+        />
+      )
+      
+      // Select two keywords
+      await user.click(screen.getByTestId('checkbox-kw1'))
+      await user.click(screen.getByTestId('checkbox-kw3'))
+      
+      // Click bulk delete
+      const deleteButton = screen.getByTestId('bulk-delete-button')
+      await user.click(deleteButton)
+      
+      // Should show confirmation dialog
+      expect(screen.getByTestId('delete-confirmation')).toBeInTheDocument()
+      expect(screen.getByText(/delete 2 keywords/i)).toBeInTheDocument()
+      
+      // Confirm deletion
+      const confirmButton = screen.getByTestId('confirm-delete-button')
+      await user.click(confirmButton)
+      
+      expect(mockOnDelete).toHaveBeenCalledWith(['kw1', 'kw3'])
+    })
+
+    it('should clear selection after successful bulk delete', async () => {
+      const user = userEvent.setup()
+      const mockOnDelete = vi.fn()
+      render(
+        <KeywordDashboard 
+          projectId="proj1" 
+          keywords={mockKeywords}
+          onBulkDelete={mockOnDelete}
+        />
+      )
+      
+      // Select and delete
+      await user.click(screen.getByTestId('checkbox-kw1'))
+      await user.click(screen.getByTestId('bulk-delete-button'))
+      await user.click(screen.getByTestId('confirm-delete-button'))
+      
+      // Selection should be cleared
+      expect(screen.queryByTestId('selected-count')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('bulk-actions-toolbar')).not.toBeInTheDocument()
+    })
+
+    it('should cancel bulk delete on cancel button', async () => {
+      const user = userEvent.setup()
+      const mockOnDelete = vi.fn()
+      render(
+        <KeywordDashboard 
+          projectId="proj1" 
+          keywords={mockKeywords}
+          onBulkDelete={mockOnDelete}
+        />
+      )
+      
+      // Select and start delete
+      await user.click(screen.getByTestId('checkbox-kw1'))
+      await user.click(screen.getByTestId('bulk-delete-button'))
+      
+      // Cancel
+      const cancelButton = screen.getByTestId('cancel-delete-button')
+      await user.click(cancelButton)
+      
+      // Dialog should close, delete not called
+      expect(screen.queryByTestId('delete-confirmation')).not.toBeInTheDocument()
+      expect(mockOnDelete).not.toHaveBeenCalled()
+      
+      // Selection should remain
+      expect(screen.getByTestId('checkbox-kw1')).toBeChecked()
+    })
+  })
 })

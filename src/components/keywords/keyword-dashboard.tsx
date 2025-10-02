@@ -33,6 +33,7 @@ interface KeywordDashboardProps {
   keywords?: KeywordData[]
   isLoading?: boolean
   error?: string
+  onBulkDelete?: (ids: string[]) => void
 }
 
 const KeywordDashboard: React.FC<KeywordDashboardProps> = ({
@@ -40,12 +41,15 @@ const KeywordDashboard: React.FC<KeywordDashboardProps> = ({
   keywords = [],
   isLoading = false,
   error,
+  onBulkDelete,
 }) => {
   const [searchTerm, setSearchTerm] = useState('')
   const [sortField, setSortField] = useState<'position' | 'volume' | null>(null)
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
   // Handle sort
   const handleSort = (field: 'position' | 'volume') => {
@@ -106,6 +110,44 @@ const KeywordDashboard: React.FC<KeywordDashboardProps> = ({
     setSearchTerm(value)
     setCurrentPage(1)
   }
+
+  // Bulk selection handlers
+  const handleSelectAll = () => {
+    if (selectedIds.length === paginatedKeywords.length && selectedIds.length > 0) {
+      // Deselect all
+      setSelectedIds([])
+    } else {
+      // Select all on current page
+      setSelectedIds(paginatedKeywords.map(k => k.id))
+    }
+  }
+
+  const handleSelectKeyword = (id: string) => {
+    if (selectedIds.includes(id)) {
+      setSelectedIds(selectedIds.filter(selectedId => selectedId !== id))
+    } else {
+      setSelectedIds([...selectedIds, id])
+    }
+  }
+
+  const handleBulkDelete = () => {
+    setShowDeleteDialog(true)
+  }
+
+  const confirmBulkDelete = () => {
+    if (onBulkDelete && selectedIds.length > 0) {
+      onBulkDelete(selectedIds)
+      setSelectedIds([])
+      setShowDeleteDialog(false)
+    }
+  }
+
+  const cancelBulkDelete = () => {
+    setShowDeleteDialog(false)
+  }
+
+  const isAllSelected = paginatedKeywords.length > 0 && 
+                        selectedIds.length === paginatedKeywords.length
 
   // Loading state
   if (isLoading) {
@@ -168,8 +210,32 @@ const KeywordDashboard: React.FC<KeywordDashboardProps> = ({
         </button>
       </div>
 
+      {/* Bulk actions toolbar */}
+      {selectedIds.length > 0 && (
+        <div data-testid="bulk-actions-toolbar" className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded">
+          <span data-testid="selected-count" className="text-sm font-medium">
+            {selectedIds.length} selected
+          </span>
+          <button
+            data-testid="bulk-delete-button"
+            onClick={handleBulkDelete}
+            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+          >
+            Delete Selected
+          </button>
+        </div>
+      )}
+
       {/* Sort controls */}
       <div className="flex items-center gap-4">
+        <input
+          type="checkbox"
+          data-testid="select-all-checkbox"
+          checked={isAllSelected}
+          onChange={handleSelectAll}
+          className="w-4 h-4 cursor-pointer"
+        />
+        <span className="text-sm text-gray-600">Select all</span>
         <span className="text-sm text-gray-600">Sort by:</span>
         <button
           data-testid="sort-position"
@@ -206,7 +272,16 @@ const KeywordDashboard: React.FC<KeywordDashboardProps> = ({
             className="p-4 border rounded hover:bg-gray-50 cursor-pointer"
           >
             <div className="flex items-center justify-between">
-              <div className="flex-1">
+              <div className="flex items-center gap-3 flex-1">
+                <input
+                  type="checkbox"
+                  data-testid={`checkbox-${keyword.id}`}
+                  checked={selectedIds.includes(keyword.id)}
+                  onChange={() => handleSelectKeyword(keyword.id)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-4 h-4 cursor-pointer"
+                />
+                <div className="flex-1">
                 <h3 className="font-semibold">{keyword.keyword}</h3>
                 <div className="flex gap-4 mt-2 text-sm text-gray-600">
                   {keyword.searchVolume && (
@@ -234,6 +309,7 @@ const KeywordDashboard: React.FC<KeywordDashboardProps> = ({
                   {keyword.positionTrend === 'up' ? '↑' : keyword.positionTrend === 'down' ? '↓' : '→'}
                 </span>
               )}
+              </div>
             </div>
           </div>
         ))}
@@ -286,6 +362,35 @@ const KeywordDashboard: React.FC<KeywordDashboardProps> = ({
                 className="px-3 py-1 border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
               >
                 Next
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation dialog */}
+      {showDeleteDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div data-testid="delete-confirmation" className="bg-white p-6 rounded-lg shadow-xl max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Confirm Delete</h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete {selectedIds.length} keyword{selectedIds.length > 1 ? 's' : ''}?
+              This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                data-testid="cancel-delete-button"
+                onClick={cancelBulkDelete}
+                className="px-4 py-2 border rounded hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                data-testid="confirm-delete-button"
+                onClick={confirmBulkDelete}
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+              >
+                Delete
               </button>
             </div>
           </div>
