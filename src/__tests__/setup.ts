@@ -36,6 +36,13 @@ process.env.PREVIEW_MODE = 'true'
 process.env.DISABLE_AUTH = 'true'
 process.env.SKIP_ENV_VALIDATION = 'true'
 
+// Mock ResizeObserver for Recharts
+global.ResizeObserver = vi.fn().mockImplementation(() => ({
+  observe: vi.fn(),
+  unobserve: vi.fn(),
+  disconnect: vi.fn(),
+}))
+
 // Setup MSW server
 beforeAll(() => {
   server.listen({ onUnhandledRequest: 'error' })
