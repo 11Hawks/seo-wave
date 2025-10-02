@@ -8,6 +8,14 @@
 
 import React, { useState, useMemo } from 'react'
 
+export interface HistoricalDataPoint {
+  date: string
+  position?: number
+  clicks?: number
+  impressions?: number
+  ctr?: number
+}
+
 export interface KeywordData {
   id: string
   keyword: string
@@ -26,6 +34,7 @@ export interface KeywordData {
   priority?: 'low' | 'medium' | 'high'
   category?: string
   positionTrend?: 'up' | 'down' | 'stable'
+  history?: HistoricalDataPoint[]
 }
 
 interface KeywordDashboardProps {

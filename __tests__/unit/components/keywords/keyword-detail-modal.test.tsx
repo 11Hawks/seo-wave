@@ -356,4 +356,90 @@ describe('KeywordDetailModal Component', () => {
       expect(modal).toHaveAttribute('aria-labelledby', 'modal-header')
     })
   })
+
+  describe('Historical Charts', () => {
+    it('should not render charts section when no history data', () => {
+      const keywordNoHistory = { ...mockKeyword, history: undefined }
+      render(
+        <KeywordDetailModal 
+          keyword={keywordNoHistory}
+          isOpen={true}
+          onClose={vi.fn()}
+        />
+      )
+
+      expect(screen.queryByText('Historical Data')).not.toBeInTheDocument()
+    })
+
+    it('should not render charts section when history is empty array', () => {
+      const keywordEmptyHistory = { ...mockKeyword, history: [] }
+      render(
+        <KeywordDetailModal 
+          keyword={keywordEmptyHistory}
+          isOpen={true}
+          onClose={vi.fn()}
+        />
+      )
+
+      expect(screen.queryByText('Historical Data')).not.toBeInTheDocument()
+    })
+
+    it('should render charts section when history data exists', () => {
+      const keywordWithHistory = {
+        ...mockKeyword,
+        history: [
+          { date: '2025-09-01', position: 15, clicks: 100, impressions: 1500, ctr: 0.067 },
+          { date: '2025-09-08', position: 12, clicks: 120, impressions: 1800, ctr: 0.067 },
+          { date: '2025-09-15', position: 10, clicks: 150, impressions: 2100, ctr: 0.071 }
+        ]
+      }
+      render(
+        <KeywordDetailModal 
+          keyword={keywordWithHistory}
+          isOpen={true}
+          onClose={vi.fn()}
+        />
+      )
+
+      expect(screen.getByText('Historical Data')).toBeInTheDocument()
+    })
+
+    it('should render position history chart when history data exists', () => {
+      const keywordWithHistory = {
+        ...mockKeyword,
+        history: [
+          { date: '2025-09-01', position: 15, clicks: 100, impressions: 1500, ctr: 0.067 },
+          { date: '2025-09-08', position: 12, clicks: 120, impressions: 1800, ctr: 0.067 }
+        ]
+      }
+      render(
+        <KeywordDetailModal 
+          keyword={keywordWithHistory}
+          isOpen={true}
+          onClose={vi.fn()}
+        />
+      )
+
+      expect(screen.getByTestId('position-history-chart')).toBeInTheDocument()
+    })
+
+    it('should render performance trends chart when history data exists', () => {
+      const keywordWithHistory = {
+        ...mockKeyword,
+        history: [
+          { date: '2025-09-01', position: 15, clicks: 100, impressions: 1500, ctr: 0.067 },
+          { date: '2025-09-08', position: 12, clicks: 120, impressions: 1800, ctr: 0.067 }
+        ]
+      }
+      render(
+        <KeywordDetailModal 
+          keyword={keywordWithHistory}
+          isOpen={true}
+          onClose={vi.fn()}
+        />
+      )
+
+      expect(screen.getByTestId('performance-trends-chart')).toBeInTheDocument()
+    })
+  })
 })

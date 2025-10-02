@@ -1,5 +1,7 @@
 import React, { useEffect } from 'react'
 import type { KeywordData } from './keyword-dashboard'
+import { PositionHistoryChart } from './position-history-chart'
+import { PerformanceTrendsChart } from './performance-trends-chart'
 
 interface KeywordDetailModalProps {
   keyword: KeywordData
@@ -235,6 +237,38 @@ export const KeywordDetailModal: React.FC<KeywordDetailModalProps> = ({
                 )}
               </div>
             </section>
+
+            {/* Historical Charts */}
+            {keyword.history && keyword.history.length > 0 && (
+              <section>
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Historical Data</h3>
+                
+                {/* Position History Chart */}
+                <div className="mb-6">
+                  <PositionHistoryChart
+                    data={keyword.history.map(h => ({
+                      date: h.date,
+                      position: h.position,
+                      impressions: h.impressions
+                    }))}
+                    height={300}
+                  />
+                </div>
+
+                {/* Performance Trends Chart */}
+                <div>
+                  <PerformanceTrendsChart
+                    data={keyword.history.map(h => ({
+                      date: h.date,
+                      clicks: h.clicks,
+                      impressions: h.impressions,
+                      ctr: h.ctr
+                    }))}
+                    height={300}
+                  />
+                </div>
+              </section>
+            )}
           </div>
         </div>
       </div>
