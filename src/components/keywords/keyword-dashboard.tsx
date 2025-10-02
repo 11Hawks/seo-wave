@@ -7,6 +7,7 @@
 'use client'
 
 import React, { useState, useMemo } from 'react'
+import { exportToCSV } from '@/utils/csv-export'
 
 export interface HistoricalDataPoint {
   date: string
@@ -155,6 +156,11 @@ const KeywordDashboard: React.FC<KeywordDashboardProps> = ({
     setShowDeleteDialog(false)
   }
 
+  const handleExport = () => {
+    // Export the currently visible (filtered/sorted) keywords
+    exportToCSV(sortedKeywords, `keywords_${projectId}`)
+  }
+
   const isAllSelected = paginatedKeywords.length > 0 && 
                         selectedIds.length === paginatedKeywords.length
 
@@ -211,6 +217,15 @@ const KeywordDashboard: React.FC<KeywordDashboardProps> = ({
           onChange={(e) => handleSearch(e.target.value)}
           className="flex-1 px-4 py-2 border rounded"
         />
+        <button
+          data-testid="export-button"
+          onClick={handleExport}
+          disabled={sortedKeywords.length === 0}
+          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+        >
+          <span>↓</span>
+          Export CSV
+        </button>
         <button 
           data-testid="add-keyword-button"
           className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"

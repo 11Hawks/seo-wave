@@ -448,4 +448,73 @@ describe('KeywordDashboard Component', () => {
       expect(screen.getByTestId('checkbox-kw1')).toBeChecked()
     })
   })
+
+  describe('Export Functionality', () => {
+    it('should render export button', () => {
+      render(
+        <KeywordDashboard 
+          projectId="proj1" 
+          keywords={mockKeywords}
+        />
+      )
+
+      expect(screen.getByTestId('export-button')).toBeInTheDocument()
+    })
+
+    it('should not show export button when no keywords (empty state)', () => {
+      render(
+        <KeywordDashboard 
+          projectId="proj1" 
+          keywords={[]}
+        />
+      )
+
+      // Empty state is shown, no toolbar
+      expect(screen.queryByTestId('export-button')).not.toBeInTheDocument()
+      expect(screen.getByTestId('keyword-empty-state')).toBeInTheDocument()
+    })
+
+    it('should enable export button when keywords exist', () => {
+      render(
+        <KeywordDashboard 
+          projectId="proj1" 
+          keywords={mockKeywords}
+        />
+      )
+
+      const exportButton = screen.getByTestId('export-button')
+      expect(exportButton).not.toBeDisabled()
+    })
+
+    it('should show export button with text and icon', () => {
+      render(
+        <KeywordDashboard 
+          projectId="proj1" 
+          keywords={mockKeywords}
+        />
+      )
+
+      const exportButton = screen.getByTestId('export-button')
+      expect(exportButton).toHaveTextContent(/export csv/i)
+      expect(exportButton).toHaveTextContent('↓')
+    })
+
+    it('should disable export button when filtered results are empty', async () => {
+      const user = userEvent.setup()
+      render(
+        <KeywordDashboard 
+          projectId="proj1" 
+          keywords={mockKeywords}
+        />
+      )
+
+      // Search for non-existent keyword
+      const searchInput = screen.getByPlaceholderText(/search keywords/i)
+      await user.type(searchInput, 'nonexistent')
+
+      // Export button should be disabled
+      const exportButton = screen.getByTestId('export-button')
+      expect(exportButton).toBeDisabled()
+    })
+  })
 })
