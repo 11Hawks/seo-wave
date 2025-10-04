@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { KeywordTrackingService } from '@/lib/keyword-tracking'
-import { rateLimit, rateLimitHeaders } from '@/lib/rate-limiting-unified'
+import { rateLimitAPI, rateLimitHeaders } from '@/lib/rate-limiting-unified'
 import { auditLog } from '@/lib/audit-logger'
 import { z } from 'zod'
 
@@ -44,7 +44,7 @@ const BulkSyncSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     // Rate limiting (very restrictive for sync operations)
-    const rateLimitResult = await rateLimit(request, 'keywords-sync', 3, 300) // 3 per 5 minutes
+    const rateLimitResult = await rateLimitAPI(request, 'keywords-sync', 3, 300) // 3 per 5 minutes
     if (!rateLimitResult.success) {
       return NextResponse.json(
         { error: 'Rate limit exceeded. Keyword sync is limited to 3 requests per 5 minutes.' },
@@ -360,7 +360,7 @@ async function handleBulkProjectSync(
 export async function GET(request: NextRequest) {
   try {
     // Rate limiting
-    const rateLimitResult = await rateLimit(request, 'keywords-read', 50, 60)
+    const rateLimitResult = await rateLimitAPI(request, 'keywords-read', 50, 60)
     if (!rateLimitResult.success) {
       return NextResponse.json(
         { error: 'Rate limit exceeded' },

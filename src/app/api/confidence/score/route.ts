@@ -8,7 +8,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { KeywordTrackingService } from '@/lib/keyword-tracking'
 import { DataAccuracyEngine } from '@/lib/data-accuracy-engine'
-import { rateLimit, rateLimitHeaders } from '@/lib/rate-limiting-unified'
+import { rateLimitAPI, rateLimitHeaders } from '@/lib/rate-limiting-unified'
 import { auditLog } from '@/lib/audit-logger'
 import { z } from 'zod'
 
@@ -49,7 +49,7 @@ const BulkScoreSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     // Rate limiting
-    const rateLimitResult = await rateLimit(request, 'confidence-scoring', 30, 60)
+    const rateLimitResult = await rateLimitAPI(request, 'confidence-scoring', 30, 60)
     if (!rateLimitResult.success) {
       return NextResponse.json(
         { error: 'Rate limit exceeded' },
@@ -355,7 +355,7 @@ async function handleBulkKeywordScoring(
 export async function GET(request: NextRequest) {
   try {
     // Rate limiting
-    const rateLimitResult = await rateLimit(request, 'confidence-read', 100, 60)
+    const rateLimitResult = await rateLimitAPI(request, 'confidence-read', 100, 60)
     if (!rateLimitResult.success) {
       return NextResponse.json(
         { error: 'Rate limit exceeded' },
