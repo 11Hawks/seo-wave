@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { rateLimitAPI } from '@/lib/rate-limiting-unified'
+import { rateLimitAPI, rateLimitHeaders } from '@/lib/rate-limiting-unified'
 import prisma from '@/lib/prisma'
 
 export async function GET(request: NextRequest) {
@@ -12,11 +12,7 @@ export async function GET(request: NextRequest) {
         { error: 'Rate limit exceeded' },
         { 
           status: 429,
-          headers: {
-            'X-RateLimit-Limit': '30',
-            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-            'X-RateLimit-Reset': rateLimitResult.reset?.toString() || ''
-          }
+          headers: rateLimitHeaders(rateLimitResult)
         }
       )
     }
@@ -58,11 +54,7 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json(mockBillingData, {
         status: 200,
-        headers: {
-          'X-RateLimit-Limit': '30',
-          'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-          'X-RateLimit-Reset': rateLimitResult.reset?.toString() || ''
-        }
+        headers: rateLimitHeaders(rateLimitResult)
       })
     }
 
@@ -99,11 +91,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(billingData, {
       status: 200,
-      headers: {
-        'X-RateLimit-Limit': '30',
-        'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-        'X-RateLimit-Reset': rateLimitResult.reset?.toString() || ''
-      }
+      headers: rateLimitHeaders(rateLimitResult)
     })
 
   } catch (error) {

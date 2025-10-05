@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       include: {
         rankings: {
           take: 1,
-          orderBy: { checkedAt: 'desc' }
+          orderBy: { date: 'desc' }
         }
       },
       orderBy: { createdAt: 'desc' },
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
         category: keyword.category,
         priority: keyword.priority,
         currentPosition: keyword.rankings[0]?.position || null,
-        lastTracked: keyword.rankings[0]?.checkedAt || null,
+        lastTracked: keyword.rankings[0]?.date || keyword.rankings[0]?.checkedAt || null,
         createdAt: keyword.createdAt,
         updatedAt: keyword.updatedAt
       })),

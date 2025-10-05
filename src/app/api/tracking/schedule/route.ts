@@ -6,8 +6,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { KeywordTrackingService } from '@/lib/keyword-tracking'
-import { rateLimit, rateLimitHeaders } from '@/lib/rate-limiting-unified'
+import { KeywordTrackingService, getKeywordTrackingService } from '@/lib/keyword-tracking'
+import { rateLimitAPI, rateLimitHeaders } from '@/lib/rate-limiting-unified'
 import { auditLog } from '@/lib/audit-logger'
 import { z } from 'zod'
 
@@ -70,7 +70,7 @@ const UpdateScheduleSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     // Rate limiting
-    const rateLimitResult = await rateLimit(request, 'tracking-schedule', 20, 60)
+    const rateLimitResult = await rateLimitAPI(request, 'tracking-schedule', 20, 60)
     if (!rateLimitResult.success) {
       return NextResponse.json(
         { error: 'Rate limit exceeded' },
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { operation = 'create' } = body
 
-    const keywordService = new KeywordTrackingService()
+    const keywordService = getKeywordTrackingService()
 
     switch (operation) {
       case 'create':
@@ -256,7 +256,7 @@ async function handleUpdateSchedule(
 export async function GET(request: NextRequest) {
   try {
     // Rate limiting
-    const rateLimitResult = await rateLimit(request, 'tracking-schedule-read', 50, 60)
+    const rateLimitResult = await rateLimitAPI(request, 'tracking-schedule-read', 50, 60)
     if (!rateLimitResult.success) {
       return NextResponse.json(
         { error: 'Rate limit exceeded' },
@@ -280,7 +280,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Organization ID is required' }, { status: 400 })
     }
 
-    const keywordService = new KeywordTrackingService()
+    const keywordService = getKeywordTrackingService()
 
     // Get schedules based on filters
     const schedules = await keywordService.getTrackingSchedules({
@@ -338,7 +338,7 @@ export async function GET(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     // Rate limiting
-    const rateLimitResult = await rateLimit(request, 'tracking-schedule-delete', 10, 60)
+    const rateLimitResult = await rateLimitAPI(request, 'tracking-schedule-delete', 10, 60)
     if (!rateLimitResult.success) {
       return NextResponse.json(
         { error: 'Rate limit exceeded' },
@@ -360,7 +360,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Schedule ID is required' }, { status: 400 })
     }
 
-    const keywordService = new KeywordTrackingService()
+    const keywordService = getKeywordTrackingService()
 
     // Get and verify schedule
     const schedule = await keywordService.getTrackingSchedule(scheduleId)

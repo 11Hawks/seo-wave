@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { rateLimitAPI } from '@/lib/rate-limiting-unified'
+import { rateLimitAPI, rateLimitHeaders } from '@/lib/rate-limiting-unified'
 import { DataAccuracyEngine } from '@/lib/data-accuracy-engine'
 
 export async function GET(request: NextRequest) {
@@ -12,11 +12,7 @@ export async function GET(request: NextRequest) {
         { error: 'Rate limit exceeded' },
         { 
           status: 429,
-          headers: {
-            'X-RateLimit-Limit': '30',
-            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-            'X-RateLimit-Reset': rateLimitResult.reset?.toString() || ''
-          }
+          headers: rateLimitHeaders(rateLimitResult)
         }
       )
     }
@@ -27,9 +23,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(accuracyReport, {
       status: 200,
       headers: {
-        'X-RateLimit-Limit': '30',
-        'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-        'X-RateLimit-Reset': rateLimitResult.reset?.toString() || '',
+        ...rateLimitHeaders(rateLimitResult),
         'Cache-Control': 'public, max-age=600' // Cache for 10 minutes
       }
     })

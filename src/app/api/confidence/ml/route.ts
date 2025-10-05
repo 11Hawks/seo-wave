@@ -6,9 +6,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { KeywordTrackingService } from '@/lib/keyword-tracking'
+import { KeywordTrackingService, getKeywordTrackingService } from '@/lib/keyword-tracking'
 import { MLConfidenceEngine } from '@/lib/ml-confidence-engine'
-import { rateLimit, rateLimitHeaders } from '@/lib/rate-limiting-unified'
+import { rateLimitAPI, rateLimitHeaders } from '@/lib/rate-limiting-unified'
 import { auditLog } from '@/lib/audit-logger'
 import { z } from 'zod'
 
@@ -41,7 +41,7 @@ const MLBatchSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     // Rate limiting (more restrictive for ML operations)
-    const rateLimitResult = await rateLimit(request, 'ml-confidence', 15, 60)
+    const rateLimitResult = await rateLimitAPI(request, 'ml-confidence', 15, 60)
     if (!rateLimitResult.success) {
       return NextResponse.json(
         { error: 'Rate limit exceeded. ML confidence scoring is limited to 15 requests per minute.' },
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { operation = 'single' } = body
 
-    const keywordService = new KeywordTrackingService()
+    const keywordService = getKeywordTrackingService()
     const mlEngine = new MLConfidenceEngine()
 
     // Handle different ML operations
@@ -346,7 +346,7 @@ async function handleBatchMLScoring(
 export async function GET(request: NextRequest) {
   try {
     // Rate limiting
-    const rateLimitResult = await rateLimit(request, 'ml-confidence-read', 50, 60)
+    const rateLimitResult = await rateLimitAPI(request, 'ml-confidence-read', 50, 60)
     if (!rateLimitResult.success) {
       return NextResponse.json(
         { error: 'Rate limit exceeded' },

@@ -6,9 +6,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { KeywordTrackingService } from '@/lib/keyword-tracking'
+import { KeywordTrackingService, getKeywordTrackingService } from '@/lib/keyword-tracking'
 import { DataAccuracyEngine } from '@/lib/data-accuracy-engine'
-import { rateLimit, rateLimitHeaders } from '@/lib/rate-limiting-unified'
+import { rateLimitAPI, rateLimitHeaders } from '@/lib/rate-limiting-unified'
 import { auditLog } from '@/lib/audit-logger'
 import { z } from 'zod'
 
@@ -49,7 +49,7 @@ const BulkScoreSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     // Rate limiting
-    const rateLimitResult = await rateLimit(request, 'confidence-scoring', 30, 60)
+    const rateLimitResult = await rateLimitAPI(request, 'confidence-scoring', 30, 60)
     if (!rateLimitResult.success) {
       return NextResponse.json(
         { error: 'Rate limit exceeded' },
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { operation = 'single' } = body
 
-    const keywordService = new KeywordTrackingService()
+    const keywordService = getKeywordTrackingService()
     const accuracyEngine = new DataAccuracyEngine()
 
     // Handle different scoring operations
@@ -355,7 +355,7 @@ async function handleBulkKeywordScoring(
 export async function GET(request: NextRequest) {
   try {
     // Rate limiting
-    const rateLimitResult = await rateLimit(request, 'confidence-read', 100, 60)
+    const rateLimitResult = await rateLimitAPI(request, 'confidence-read', 100, 60)
     if (!rateLimitResult.success) {
       return NextResponse.json(
         { error: 'Rate limit exceeded' },
@@ -378,7 +378,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Organization ID is required' }, { status: 400 })
     }
 
-    const keywordService = new KeywordTrackingService()
+    const keywordService = getKeywordTrackingService()
 
     // Get confidence scoring overview
     const projects = projectId 

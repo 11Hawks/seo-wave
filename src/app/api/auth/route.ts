@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { rateLimitAPI } from '@/lib/rate-limiting-unified'
+import { rateLimitAPI, rateLimitHeaders } from '@/lib/rate-limiting-unified'
 import { z } from 'zod'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
@@ -20,11 +20,7 @@ export async function POST(request: NextRequest) {
         { error: 'Too many authentication attempts' },
         { 
           status: 429,
-          headers: {
-            'X-RateLimit-Limit': '10',
-            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-            'X-RateLimit-Reset': rateLimitResult.reset?.toString() || ''
-          }
+          headers: rateLimitHeaders(rateLimitResult)
         }
       )
     }
@@ -65,11 +61,7 @@ export async function POST(request: NextRequest) {
         token
       }, {
         status: 200,
-        headers: {
-          'X-RateLimit-Limit': '10',
-          'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-          'X-RateLimit-Reset': rateLimitResult.reset?.toString() || ''
-        }
+        headers: rateLimitHeaders(rateLimitResult)
       })
     }
 
@@ -110,11 +102,7 @@ export async function POST(request: NextRequest) {
       token
     }, {
       status: 200,
-      headers: {
-        'X-RateLimit-Limit': '10',
-        'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-        'X-RateLimit-Reset': rateLimitResult.reset?.toString() || ''
-      }
+      headers: rateLimitHeaders(rateLimitResult)
     })
 
   } catch (error) {

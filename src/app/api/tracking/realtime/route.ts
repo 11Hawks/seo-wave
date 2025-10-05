@@ -6,8 +6,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { KeywordTrackingService } from '@/lib/keyword-tracking'
-import { rateLimit, rateLimitHeaders } from '@/lib/rate-limiting-unified'
+import { KeywordTrackingService, getKeywordTrackingService } from '@/lib/keyword-tracking'
+import { rateLimitAPI, rateLimitHeaders } from '@/lib/rate-limiting-unified'
 import { auditLog } from '@/lib/audit-logger'
 import { z } from 'zod'
 
@@ -36,7 +36,7 @@ const BulkTrackSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     // Rate limiting (restrictive for real-time tracking)
-    const rateLimitResult = await rateLimit(request, 'realtime-tracking', 10, 60)
+    const rateLimitResult = await rateLimitAPI(request, 'realtime-tracking', 10, 60)
     if (!rateLimitResult.success) {
       return NextResponse.json(
         { error: 'Rate limit exceeded. Real-time tracking is limited to 10 requests per minute.' },
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { operation = 'track' } = body
 
-    const keywordService = new KeywordTrackingService()
+    const keywordService = getKeywordTrackingService()
 
     // Handle different tracking operations
     switch (operation) {
@@ -357,7 +357,7 @@ async function handleBulkTracking(
 export async function GET(request: NextRequest) {
   try {
     // Rate limiting
-    const rateLimitResult = await rateLimit(request, 'tracking-status', 50, 60)
+    const rateLimitResult = await rateLimitAPI(request, 'tracking-status', 50, 60)
     if (!rateLimitResult.success) {
       return NextResponse.json(
         { error: 'Rate limit exceeded' },
@@ -380,7 +380,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Organization ID is required' }, { status: 400 })
     }
 
-    const keywordService = new KeywordTrackingService()
+    const keywordService = getKeywordTrackingService()
 
     // Get tracking status
     const trackingHistory = await keywordService.getSyncHistory(

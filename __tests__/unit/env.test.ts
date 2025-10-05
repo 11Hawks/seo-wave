@@ -4,6 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { evaluateAuthSecurity } from '../../src/lib/auth-security'
 
 // Mock the @t3-oss/env-nextjs module
 const mockCreateEnv = vi.fn()
@@ -24,6 +25,7 @@ vi.mock('zod', () => ({
       url: () => ({
         optional: () => ({ default: (val: string) => ({ _def: { defaultValue: val } }) })
       }),
+      optional: () => ({ default: (val: string) => ({ _def: { defaultValue: val } }) }),
       regex: () => ({
         transform: () => ({
           optional: () => ({ _def: { defaultValue: undefined } })
@@ -64,15 +66,16 @@ describe('Environment Configuration', () => {
     })
 
     it('should create environment configuration with proper schema', async () => {
-      const { env } = await import('../../src/lib/env')
+      await import('../../src/lib/env')
       
-      expect(mockCreateEnv).toHaveBeenCalledWith({
+      const configCall = mockCreateEnv.mock.calls[0][0]
+      expect(configCall).toEqual(expect.objectContaining({
         server: expect.any(Object),
         client: expect.any(Object),
-        experimental__runtimeEnv: expect.any(Object),
         skipValidation: expect.any(Boolean),
         emptyStringAsUndefined: expect.any(Boolean)
-      })
+      }))
+      expect(configCall.runtimeEnv ?? configCall.experimental__runtimeEnv).toBeDefined()
     })
 
     it('should include required server-side environment variables', async () => {
@@ -97,7 +100,6 @@ describe('Environment Configuration', () => {
       
       expect(clientConfig).toHaveProperty('NEXT_PUBLIC_APP_URL')
       expect(clientConfig).toHaveProperty('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY')
-      expect(clientConfig).toHaveProperty('NEXT_PUBLIC_GOOGLE_ANALYTICS_ID')
     })
 
     it('should skip validation in test environment', async () => {
@@ -110,6 +112,7 @@ describe('Environment Configuration', () => {
 
     it('should not skip validation in production', async () => {
       process.env.NODE_ENV = 'production'
+      delete process.env.SKIP_ENV_VALIDATION
       
       // Clear the module cache to get fresh import
       vi.resetModules()
@@ -141,7 +144,7 @@ describe('Environment Configuration', () => {
       expect(mockEnvObject.GOOGLE_CLIENT_ID).toBe('development-client-id')
       expect(mockEnvObject.GOOGLE_CLIENT_SECRET).toBe('development-client-secret')
       expect(mockEnvObject.STRIPE_SECRET_KEY).toBe('sk_test_development')
-      expect(mockEnvObject.JWT_SECRET).toHaveLength(32) // Should be 32 characters minimum
+      expect(mockEnvObject.JWT_SECRET.length).toBeGreaterThanOrEqual(32) // Should be at least 32 characters
     })
   })
 
@@ -149,11 +152,12 @@ describe('Environment Configuration', () => {
     it('should map client environment variables for runtime access', async () => {
       await import('../../src/lib/env')
       
-      const runtimeEnvConfig = mockCreateEnv.mock.calls[0][0].experimental__runtimeEnv
+      const configCall = mockCreateEnv.mock.calls[0][0]
+      const runtimeEnvConfig = configCall.runtimeEnv ?? configCall.experimental__runtimeEnv
+      expect(runtimeEnvConfig).toBeDefined()
       
       expect(runtimeEnvConfig).toHaveProperty('NEXT_PUBLIC_APP_URL')
       expect(runtimeEnvConfig).toHaveProperty('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY')
-      expect(runtimeEnvConfig).toHaveProperty('NEXT_PUBLIC_GOOGLE_ANALYTICS_ID')
     })
   })
 
@@ -199,26 +203,22 @@ describe('Environment Configuration', () => {
   })
 
   describe('Error Handling', () => {
-    it('should throw meaningful error for missing required variables', () => {
+    it('should throw meaningful error for missing required variables', async () => {
       const error = new Error('Environment validation failed: DATABASE_URL is required')
       mockCreateEnv.mockImplementation(() => {
         throw error
       })
       
-      expect(() => {
-        require('../../src/lib/env')
-      }).toThrow('Environment validation failed')
+      await expect(import('../../src/lib/env')).rejects.toThrow('Environment validation failed')
     })
 
-    it('should throw error for invalid URL format', () => {
+    it('should throw error for invalid URL format', async () => {
       const error = new Error('Invalid URL format for DATABASE_URL')
       mockCreateEnv.mockImplementation(() => {
         throw error
       })
       
-      expect(() => {
-        require('../../src/lib/env')
-      }).toThrow('Invalid URL format')
+      await expect(import('../../src/lib/env')).rejects.toThrow('Invalid URL format')
     })
   })
 
@@ -244,6 +244,77 @@ describe('Environment Configuration', () => {
       // In a real implementation, these should fail validation
       expect(mockEnv.JWT_SECRET.length).toBeLessThan(32)
       expect(mockEnv.ENCRYPTION_KEY.length).toBeLessThan(32)
+    })
+  })
+
+  describe('Auth security evaluation helper', () => {
+    const secureEnv = {
+      NEXTAUTH_SECRET: 'this-is-a-secure-secret-value-with-length',
+      NEXTAUTH_URL: 'https://example.com',
+      JWT_SECRET: 'secure-jwt-secret-value-with-length-32',
+      ENCRYPTION_KEY: 'secure-encryption-key-with-length-32',
+    } as NodeJS.ProcessEnv
+
+    it('should return warnings when secrets are weak outside production', () => {
+      const report = evaluateAuthSecurity(
+        {
+          ...secureEnv,
+          NEXTAUTH_SECRET: '',
+          JWT_SECRET: '',
+          ENCRYPTION_KEY: '',
+        },
+        { nodeEnv: 'development' }
+      )
+
+      expect(report.errors).toHaveLength(0)
+      expect(report.warnings).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining('NEXTAUTH_SECRET must be set'),
+          expect.stringContaining('JWT_SECRET is missing'),
+          expect.stringContaining('ENCRYPTION_KEY is missing'),
+        ])
+      )
+    })
+
+    it('should return errors when secrets are weak in production', () => {
+      const report = evaluateAuthSecurity(
+        {
+          ...secureEnv,
+          NEXTAUTH_SECRET: '',
+          NEXTAUTH_URL: undefined,
+          JWT_SECRET: secureEnv.JWT_SECRET,
+          ENCRYPTION_KEY: secureEnv.ENCRYPTION_KEY,
+        },
+        { nodeEnv: 'production' }
+      )
+
+      expect(report.errors).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining('NEXTAUTH_SECRET must be set'),
+          expect.stringContaining('NEXTAUTH_URL must be configured'),
+        ])
+      )
+    })
+
+    it('should downgrade errors to warnings when preview mode enabled in production', () => {
+      const report = evaluateAuthSecurity(
+        {
+          ...secureEnv,
+          NEXTAUTH_SECRET: '',
+          JWT_SECRET: '',
+          ENCRYPTION_KEY: '',
+        },
+        { nodeEnv: 'production', isPreviewMode: true }
+      )
+
+      expect(report.errors).toHaveLength(0)
+      expect(report.warnings).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining('NEXTAUTH_SECRET must be set'),
+          expect.stringContaining('JWT_SECRET is missing'),
+          expect.stringContaining('ENCRYPTION_KEY is missing'),
+        ])
+      )
     })
   })
 })

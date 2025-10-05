@@ -10,6 +10,7 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import { compare } from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { env } from '@/lib/env';
+import { evaluateAuthSecurity } from '@/lib/auth-security';
 
 // Define types locally to avoid Prisma dependency issues
 type UserRole = 'USER' | 'ADMIN' | 'SUPER_ADMIN';
@@ -128,15 +129,73 @@ async function createAuditLog(
   });
 }
 
-// Check if authentication should be disabled
-const isPreviewMode = process.env.PREVIEW_MODE === 'true' || process.env.DISABLE_AUTH === 'true';
+// Authentication environment & security evaluation
+const previewModeFlag = process.env.PREVIEW_MODE === 'true';
+const disableAuthFlag = process.env.DISABLE_AUTH === 'true';
+const nodeEnv = process.env.NODE_ENV ?? 'development';
+
+export type AuthDisabledReason =
+  | 'preview-mode'
+  | 'explicitly-disabled'
+  | 'security-validation-failed';
+
+const authSecurityReport = evaluateAuthSecurity(process.env, {
+  isPreviewMode: previewModeFlag || disableAuthFlag,
+  nodeEnv,
+});
+
+const hasSecurityErrors = authSecurityReport.errors.length > 0;
+const isProduction = nodeEnv === 'production';
+const shouldLogSecurityOutput = nodeEnv !== 'test';
+
+if (shouldLogSecurityOutput && authSecurityReport.warnings.length > 0) {
+  console.warn('[auth-security] Warnings:', authSecurityReport.warnings.join(' | '));
+}
+
+if (hasSecurityErrors) {
+  const errorMessage = `[auth-security] Errors: ${authSecurityReport.errors.join(' | ')}`;
+  if (isProduction && !previewModeFlag && !disableAuthFlag) {
+    if (shouldLogSecurityOutput) {
+      console.error(errorMessage);
+    }
+    throw new Error(errorMessage);
+  }
+  if (shouldLogSecurityOutput) {
+    console.warn(errorMessage);
+  }
+}
+
+const isAuthDisabled =
+  previewModeFlag ||
+  disableAuthFlag ||
+  (hasSecurityErrors && !isProduction);
+
+const authDisabledReason: AuthDisabledReason | null = isAuthDisabled
+  ? previewModeFlag
+    ? 'preview-mode'
+    : disableAuthFlag
+      ? 'explicitly-disabled'
+      : 'security-validation-failed'
+  : null;
+
+const isPreviewMode = previewModeFlag;
+const nextAuthSecret = process.env.NEXTAUTH_SECRET;
+
+export const authSecurityStatus = {
+  report: authSecurityReport,
+  isAuthDisabled,
+  reason: authDisabledReason,
+  isPreviewMode,
+  nodeEnv,
+};
 
 /**
  * NextAuth.js configuration
  */
 export const authOptions: NextAuthOptions = {
-  // Only use Prisma adapter if not in preview mode
-  ...(isPreviewMode ? {} : { adapter: PrismaAdapter(prisma) }),
+  // Only use Prisma adapter if authentication is enabled
+  ...(isAuthDisabled ? {} : { adapter: PrismaAdapter(prisma) }),
+  ...(nextAuthSecret ? { secret: nextAuthSecret } : {}),
   
   session: {
     strategy: 'jwt',
@@ -151,104 +210,108 @@ export const authOptions: NextAuthOptions = {
     newUser: '/onboarding',
   },
   
-  providers: isPreviewMode ? [] : [
-    /**
-     * Google OAuth Provider
-     */
-    GoogleProvider({
-      clientId: env.GOOGLE_CLIENT_ID || 'dev-client-id',
-      clientSecret: env.GOOGLE_CLIENT_SECRET || 'dev-client-secret',
-      authorization: {
-        params: {
-          scope: [
-            'openid',
-            'email',
-            'profile',
-            'https://www.googleapis.com/auth/webmasters.readonly',
-            'https://www.googleapis.com/auth/analytics.readonly',
-          ].join(' '),
-        },
-      },
-    }),
-    
-    /**
-     * Email/Password Credentials Provider
-     */
-    ...(isPreviewMode ? [] : [CredentialsProvider({
-      id: 'credentials',
-      name: 'credentials',
-      credentials: {
-        email: { label: 'Email', type: 'email' },
-        password: { label: 'Password', type: 'password' },
-      },
-      async authorize(credentials, req) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error('Email and password are required');
-        }
-
-        // Check if account is locked
-        const isLocked = await isAccountLocked(credentials.email);
-        if (isLocked) {
-          throw new Error('Account temporarily locked due to too many failed attempts');
-        }
-
-        // Find user in database
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email.toLowerCase() },
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            image: true,
-            role: true,
-            status: true,
-            passwordHash: true,
-            organizationMembers: {
-              where: { role: 'OWNER' },
-              select: { organizationId: true },
+  providers: isAuthDisabled
+    ? []
+    : [
+        /**
+         * Google OAuth Provider
+         */
+        GoogleProvider({
+          clientId: env.GOOGLE_CLIENT_ID || 'dev-client-id',
+          clientSecret: env.GOOGLE_CLIENT_SECRET || 'dev-client-secret',
+          authorization: {
+            params: {
+              scope: [
+                'openid',
+                'email',
+                'profile',
+                'https://www.googleapis.com/auth/webmasters.readonly',
+                'https://www.googleapis.com/auth/analytics.readonly',
+              ].join(' '),
             },
           },
-        });
+        }),
 
-        if (!user || !user.passwordHash) {
-          await handleFailedLogin(credentials.email);
-          throw new Error('Invalid credentials');
-        }
+        /**
+         * Email/Password Credentials Provider
+         */
+        CredentialsProvider({
+          id: 'credentials',
+          name: 'credentials',
+          credentials: {
+            email: { label: 'Email', type: 'email' },
+            password: { label: 'Password', type: 'password' },
+          },
+          async authorize(credentials, req) {
+            if (!credentials?.email || !credentials?.password) {
+              throw new Error('Email and password are required');
+            }
 
-        // Verify password
-        const isValidPassword = await compare(credentials.password, user.passwordHash);
-        if (!isValidPassword) {
-          await handleFailedLogin(credentials.email);
-          throw new Error('Invalid credentials');
-        }
+            const normalizedEmail = credentials.email.trim().toLowerCase();
 
-        // Check user status
-        if (user.status !== 'ACTIVE') {
-          throw new Error(`Account is ${user.status.toLowerCase()}`);
-        }
+            // Check if account is locked
+            const isLocked = await isAccountLocked(normalizedEmail);
+            if (isLocked) {
+              throw new Error('Account temporarily locked due to too many failed attempts');
+            }
 
-        // Reset login attempts on successful authentication
-        await resetLoginAttempts(credentials.email);
+            // Find user in database
+            const user = await prisma.user.findUnique({
+              where: { email: normalizedEmail },
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                image: true,
+                role: true,
+                status: true,
+                passwordHash: true,
+                organizationMembers: {
+                  where: { role: 'OWNER' },
+                  select: { organizationId: true },
+                },
+              },
+            });
 
-        // Create audit log
-        const ipAddress = req.headers?.['x-forwarded-for'] as string || 
-                          req.headers?.['x-real-ip'] as string;
-        const userAgent = req.headers?.['user-agent'] as string;
-        
-        await createAuditLog(user.id, 'LOGIN', ipAddress, userAgent);
+            if (!user || !user.passwordHash) {
+              await handleFailedLogin(normalizedEmail);
+              throw new Error('Invalid credentials');
+            }
 
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          image: user.image,
-          role: user.role,
-          status: user.status,
-          organizationId: user.organizationMembers[0]?.organizationId || '',
-        };
-      },
-    })]),
-  ],
+            // Verify password
+            const isValidPassword = await compare(credentials.password, user.passwordHash);
+            if (!isValidPassword) {
+              await handleFailedLogin(normalizedEmail);
+              throw new Error('Invalid credentials');
+            }
+
+            // Check user status
+            if (user.status !== 'ACTIVE') {
+              throw new Error(`Account is ${user.status.toLowerCase()}`);
+            }
+
+            // Reset login attempts on successful authentication
+            await resetLoginAttempts(normalizedEmail);
+
+            // Create audit log
+            const ipAddress = (req.headers?.['x-forwarded-for'] as string) ||
+                              (req.headers?.['x-real-ip'] as string);
+            const userAgent = req.headers?.['user-agent'] as string;
+
+            await createAuditLog(user.id, 'LOGIN', ipAddress, userAgent);
+
+            return {
+              id: user.id,
+              email: user.email,
+              name: user.name,
+              image: user.image,
+              role: user.role,
+              status: user.status,
+              organizationId: user.organizationMembers[0]?.organizationId || '',
+            };
+          },
+        }),
+      ],
   
   callbacks: {
     /**
@@ -330,15 +393,21 @@ export const authOptions: NextAuthOptions = {
      * Sign out event - create audit log
      */
     async signOut({ token }) {
-      if (token?.userId) {
-        await createAuditLog(token.userId as string, 'LOGOUT');
+      if (isAuthDisabled || !token?.userId) {
+        return;
       }
+
+      await createAuditLog(token.userId as string, 'LOGOUT');
     },
     
     /**
      * Create user event - set up default organization
      */
     async createUser({ user }) {
+      if (isAuthDisabled) {
+        return;
+      }
+
       // Create default personal organization for new users
       const organization = await prisma.organization.create({
         data: {
@@ -376,6 +445,10 @@ export const authOptions: NextAuthOptions = {
  * Get current user session server-side
  */
 export async function getCurrentUser(req: any, res: any) {
+  if (isAuthDisabled) {
+    return null;
+  }
+
   const session = await getServerSession(req, res, authOptions);
   return session?.user;
 }

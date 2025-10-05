@@ -6,6 +6,7 @@
 import { PrismaClient, Keyword, Ranking, KeywordAccuracy, KeywordDifficulty } from '@prisma/client'
 import { DataAccuracyEngine, DataPoint, DataSource } from './data-accuracy-engine'
 import { GoogleSearchConsoleService } from './google-search-console'
+import { prisma } from '@/lib/prisma'
 
 export interface KeywordData {
   keyword: string
@@ -42,6 +43,11 @@ export interface KeywordPerformanceMetrics {
   avgPosition: number
   confidenceScore: number
   lastUpdated: Date
+}
+
+export type NormalizedRanking = Ranking & {
+  checkedAt: Date | null
+  source: string | null
 }
 
 export interface KeywordImportResult {
@@ -344,7 +350,7 @@ export class KeywordTrackingService {
     projectId: string,
     userId: string,
     sources: string[] = ['GSC']
-  ): Promise<Ranking[]> {
+  ): Promise<NormalizedRanking[]> {
     try {
       const keyword = await this.prisma.keyword.findUnique({
         where: { id: keywordId },
@@ -376,7 +382,7 @@ export class KeywordTrackingService {
         await this.calculateKeywordAccuracy(keywordId, rankings)
       }
 
-      return rankings
+      return rankings.map((ranking) => this.normalizeRanking(ranking))
     } catch (error) {
       console.error('Error tracking keyword ranking:', error)
       throw new Error(`Failed to track keyword ranking: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -613,8 +619,10 @@ export class KeywordTrackingService {
 
       if (!keyword) return null
 
-      const currentRanking = keyword.rankings[0]
-      const previousRanking = keyword.rankings[1]
+      const normalizedRankings = keyword.rankings.map((ranking) => this.normalizeRanking(ranking))
+
+      const currentRanking = normalizedRankings[0]
+      const previousRanking = normalizedRankings[1]
 
       const currentPosition = currentRanking?.position || null
       const previousPosition = previousRanking?.position || null
@@ -692,12 +700,17 @@ export class KeywordTrackingService {
         ],
       })
 
-      return keywords.map(keyword => ({
-        ...keyword,
-        latestRanking: keyword.rankings[0],
-        currentPosition: keyword.rankings[0]?.position || null,
-        confidenceScore: keyword.keywordAccuracy[0]?.confidenceScore || 0,
-      }))
+      return keywords.map(keyword => {
+        const normalizedRankings = keyword.rankings.map((ranking) => this.normalizeRanking(ranking))
+
+        return {
+          ...keyword,
+          rankings: normalizedRankings,
+          latestRanking: normalizedRankings[0],
+          currentPosition: normalizedRankings[0]?.position || null,
+          confidenceScore: keyword.keywordAccuracy[0]?.confidenceScore || 0,
+        }
+      })
     } catch (error) {
       console.error('Error getting project keywords:', error)
       throw new Error(`Failed to get project keywords: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -775,11 +788,11 @@ export class KeywordTrackingService {
   }
 
   async getKeywordById(id: string) {
-    return this.prisma.keyword.findUnique({
+    const keyword = await this.prisma.keyword.findUnique({
       where: { id },
       include: {
         rankings: {
-          orderBy: { checkedAt: 'desc' },
+          orderBy: { date: 'desc' },
           take: 1
         },
         keywordAccuracy: {
@@ -788,6 +801,15 @@ export class KeywordTrackingService {
         }
       }
     })
+
+    if (!keyword) {
+      return null
+    }
+
+    return {
+      ...keyword,
+      rankings: keyword.rankings.map((ranking) => this.normalizeRanking(ranking))
+    }
   }
 
   async getKeywordsByIds(ids: string[]) {
@@ -805,24 +827,28 @@ export class KeywordTrackingService {
     })
   }
 
-  async getLatestRanking(keywordId: string) {
-    return this.prisma.ranking.findFirst({
+  async getLatestRanking(keywordId: string): Promise<NormalizedRanking | null> {
+    const ranking = await this.prisma.ranking.findFirst({
       where: { keywordId },
-      orderBy: { checkedAt: 'desc' }
+      orderBy: { date: 'desc' }
     })
+
+    return ranking ? this.normalizeRanking(ranking) : null
   }
 
-  async getKeywordRankings(keywordId: string, limit?: number, fromDate?: Date) {
+  async getKeywordRankings(keywordId: string, limit?: number, fromDate?: Date): Promise<NormalizedRanking[]> {
     const where: any = { keywordId }
     if (fromDate) {
-      where.checkedAt = { gte: fromDate }
+      where.date = { gte: fromDate }
     }
 
-    return this.prisma.ranking.findMany({
+    const rankings = await this.prisma.ranking.findMany({
       where,
-      orderBy: { checkedAt: 'desc' },
+      orderBy: { date: 'desc' },
       ...(limit && { take: limit })
     })
+
+    return rankings.map((ranking) => this.normalizeRanking(ranking))
   }
 
   async getKeywordAccuracyHistory(keywordId: string, limit?: number, fromDate?: Date) {
@@ -838,20 +864,22 @@ export class KeywordTrackingService {
     })
   }
 
-  async getGSCDataForKeyword(keywordId: string, fromDate: Date, toDate: Date) {
+  async getGSCDataForKeyword(keywordId: string, fromDate: Date, toDate: Date): Promise<NormalizedRanking[]> {
     // This would typically fetch from a separate GSC data table
     // For now, we'll use ranking data as a proxy
-    return this.prisma.ranking.findMany({
+    const rankings = await this.prisma.ranking.findMany({
       where: {
         keywordId,
-        checkedAt: {
+        date: {
           gte: fromDate,
           lte: toDate
         },
-        source: 'GSC'
+        dataSource: 'GSC'
       },
-      orderBy: { checkedAt: 'desc' }
+      orderBy: { date: 'desc' }
     })
+
+    return rankings.map((ranking) => this.normalizeRanking(ranking))
   }
 
   // Project-related methods
@@ -1076,5 +1104,70 @@ export class KeywordTrackingService {
     })
   }
 
+  private normalizeRanking(ranking: Ranking): NormalizedRanking {
+    const normalizedDate = ranking.date ?? (ranking as any).checkedAt ?? null
+    const normalizedSource = ranking.dataSource ?? (ranking as any).source ?? null
 
+    return {
+      ...ranking,
+      checkedAt: normalizedDate,
+      source: normalizedSource,
+    }
+  }
+}
+export interface KeywordTrackingServiceFactoryOptions {
+  prismaClient?: PrismaClient
+  accuracyEngine?: DataAccuracyEngine
+  googleSearchConsoleService?: GoogleSearchConsoleService
+}
+
+let sharedAccuracyEngine: DataAccuracyEngine | null = null
+let sharedKeywordTrackingService: KeywordTrackingService | null = null
+
+function resolveAccuracyEngine(
+  prismaClient: PrismaClient,
+  override?: DataAccuracyEngine
+): DataAccuracyEngine {
+  if (override) {
+    return override
+  }
+
+  if (prismaClient !== prisma) {
+    return new DataAccuracyEngine(prismaClient)
+  }
+
+  if (!sharedAccuracyEngine) {
+    sharedAccuracyEngine = new DataAccuracyEngine(prismaClient)
+  }
+
+  return sharedAccuracyEngine
+}
+
+export function createKeywordTrackingService(
+  options: KeywordTrackingServiceFactoryOptions = {}
+): KeywordTrackingService {
+  const prismaClient = options.prismaClient ?? prisma
+  const accuracyEngine = resolveAccuracyEngine(prismaClient, options.accuracyEngine)
+
+  return new KeywordTrackingService(
+    prismaClient,
+    accuracyEngine,
+    options.googleSearchConsoleService
+  )
+}
+
+export function getKeywordTrackingService(): KeywordTrackingService {
+  if (!sharedKeywordTrackingService) {
+    sharedKeywordTrackingService = createKeywordTrackingService()
+  }
+
+  return sharedKeywordTrackingService
+}
+
+/**
+ * Test helper to clear cached service instances between runs.
+ */
+export function resetKeywordTrackingService(): void {
+  sharedKeywordTrackingService = null
+  sharedAccuracyEngine = null
 }

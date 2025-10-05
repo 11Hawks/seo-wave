@@ -171,7 +171,7 @@ export const handlers = [
     return HttpResponse.json({
       success: true,
       remaining: 99,
-      resetTime: new Date(Date.now() + 60000).toISOString(),
+      reset: Date.now() + 60000,
     })
   }),
 

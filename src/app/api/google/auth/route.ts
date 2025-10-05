@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { rateLimitAPI } from '@/lib/rate-limiting-unified'
+import { rateLimitAPI, rateLimitHeaders } from '@/lib/rate-limiting-unified'
 import { GoogleAPIService } from '@/lib/google-api-service'
 
 export async function GET(request: NextRequest) {
@@ -12,11 +12,7 @@ export async function GET(request: NextRequest) {
         { error: 'Rate limit exceeded' },
         { 
           status: 429,
-          headers: {
-            'X-RateLimit-Limit': '20',
-            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-            'X-RateLimit-Reset': rateLimitResult.reset?.toString() || ''
-          }
+          headers: rateLimitHeaders(rateLimitResult)
         }
       )
     }
@@ -35,11 +31,7 @@ export async function GET(request: NextRequest) {
       state
     }, {
       status: 200,
-      headers: {
-        'X-RateLimit-Limit': '20',
-        'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-        'X-RateLimit-Reset': rateLimitResult.reset?.toString() || ''
-      }
+      headers: rateLimitHeaders(rateLimitResult)
     })
 
   } catch (error) {

@@ -270,7 +270,7 @@ export const mockApiResponses = {
     allowed: {
       success: true,
       remaining: 95,
-      resetTime: new Date(Date.now() + 60000).toISOString(),
+      reset: Date.now() + 60000,
       limit: 100,
       timestamp: new Date().toISOString(),
     },

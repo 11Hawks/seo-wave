@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { KeywordTrackingService, KeywordData } from '@/lib/keyword-tracking'
+import { KeywordTrackingService, KeywordData, getKeywordTrackingService } from '@/lib/keyword-tracking'
 import { rateLimitAPI, rateLimitHeaders } from '@/lib/rate-limiting-unified'
 import { auditLog } from '@/lib/audit-logger'
 import { z } from 'zod'
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Project ID is required' }, { status: 400 })
     }
 
-    const keywordService = new KeywordTrackingService()
+    const keywordService = getKeywordTrackingService()
     
     // Build filter conditions
     const where: any = {
@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
         include: {
           rankings: {
             take: 1,
-            orderBy: { checkedAt: 'desc' }
+            orderBy: { date: 'desc' }
           },
           ...(includeAccuracy && {
             keywordAccuracy: {
@@ -198,7 +198,7 @@ export async function POST(request: NextRequest) {
 
     const keywordData: KeywordData = validation.data
 
-    const keywordService = new KeywordTrackingService()
+    const keywordService = getKeywordTrackingService()
     
     // Check for duplicate keywords in the project
     const existingKeyword = await keywordService.findKeywordByProjectAndKeyword(
@@ -305,7 +305,7 @@ export async function PUT(request: NextRequest) {
 
     const { id, ...updateData } = validation.data
 
-    const keywordService = new KeywordTrackingService()
+    const keywordService = getKeywordTrackingService()
     
     // Check if keyword exists and user has access
     const existingKeyword = await keywordService.getKeywordById(id)
@@ -382,7 +382,7 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     // Rate limiting
-    const rateLimitResult = await rateLimit(request, 'keywords-write', 30, 60)
+    const rateLimitResult = await rateLimitAPI(request, 'keywords-write', 30, 60)
     if (!rateLimitResult.success) {
       return NextResponse.json(
         { error: 'Rate limit exceeded' },
@@ -413,7 +413,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Cannot delete more than 50 keywords at once' }, { status: 400 })
     }
 
-    const keywordService = new KeywordTrackingService()
+    const keywordService = getKeywordTrackingService()
     
     // Verify all keywords exist and get project info for audit
     const keywords = await keywordService.getKeywordsByIds(ids)

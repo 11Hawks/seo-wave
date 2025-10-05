@@ -6,8 +6,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { KeywordTrackingService } from '@/lib/keyword-tracking'
-import { rateLimit, rateLimitHeaders } from '@/lib/rate-limiting-unified'
+import { KeywordTrackingService, getKeywordTrackingService } from '@/lib/keyword-tracking'
+import { rateLimitAPI, rateLimitHeaders } from '@/lib/rate-limiting-unified'
 import { auditLog } from '@/lib/audit-logger'
 import { z } from 'zod'
 
@@ -25,7 +25,7 @@ export async function POST(
 ) {
   try {
     // Rate limiting (more restrictive for tracking operations)
-    const rateLimitResult = await rateLimit(request, 'keyword-tracking', 20, 60)
+    const rateLimitResult = await rateLimitAPI(request, 'keyword-tracking', 20, 60)
     if (!rateLimitResult.success) {
       return NextResponse.json(
         { error: 'Rate limit exceeded' },
@@ -54,7 +54,7 @@ export async function POST(
 
     const { sources, force, calculateAccuracy } = validation.data
 
-    const keywordService = new KeywordTrackingService()
+    const keywordService = getKeywordTrackingService()
     
     // Check if keyword exists and get basic info
     const keyword = await keywordService.getKeywordById(keywordId)
@@ -187,7 +187,7 @@ export async function GET(
 ) {
   try {
     // Rate limiting
-    const rateLimitResult = await rateLimit(request, 'keywords-read', 100, 60)
+    const rateLimitResult = await rateLimitAPI(request, 'keywords-read', 100, 60)
     if (!rateLimitResult.success) {
       return NextResponse.json(
         { error: 'Rate limit exceeded' },
@@ -209,7 +209,7 @@ export async function GET(
     const includeAccuracy = searchParams.get('includeAccuracy') === 'true'
     const period = searchParams.get('period') || '30d' // 7d, 30d, 90d, 1y
 
-    const keywordService = new KeywordTrackingService()
+    const keywordService = getKeywordTrackingService()
     
     // Check if keyword exists
     const keyword = await keywordService.getKeywordById(keywordId)
