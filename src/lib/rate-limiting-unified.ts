@@ -8,7 +8,7 @@ import { NextRequest } from 'next/server'
 import Redis from 'ioredis'
 
 // In-memory storage for development/fallback
-const memoryStore = new Map<string, { count: number; resetTime: number }>()
+const memoryStore = new Map<string, { count: number; reset: number }>()
 const tokenBucketStore = new Map<string, { tokens: number[]; lastRefill: number }>()
 
 // Redis client for production
@@ -43,7 +43,7 @@ try {
 export interface RateLimitResult {
   success: boolean
   remaining: number
-  resetTime: number
+  reset: number
   totalHits: number
   limit: number
 }
@@ -70,7 +70,7 @@ export async function rateLimit(
       return {
         success: true,
         remaining: limit - 1,
-        resetTime: Date.now() + windowSeconds * 1000,
+        reset: Date.now() + windowSeconds * 1000,
         totalHits: 1,
         limit
       }
@@ -81,7 +81,7 @@ export async function rateLimit(
     
     const now = Date.now()
     const window = windowSeconds * 1000
-    const resetTime = Math.ceil(now / window) * window
+    const reset = Math.ceil(now / window) * window
 
     if (redis) {
       // Use Redis for rate limiting
@@ -95,7 +95,7 @@ export async function rateLimit(
       return {
         success: count <= limit,
         remaining: Math.max(0, limit - count),
-        resetTime,
+        reset,
         totalHits: count,
         limit
       }
@@ -103,13 +103,13 @@ export async function rateLimit(
       // Use in-memory storage
       const existing = memoryStore.get(key)
       
-      if (!existing || existing.resetTime <= now) {
+      if (!existing || existing.reset <= now) {
         // New window
-        memoryStore.set(key, { count: 1, resetTime })
+        memoryStore.set(key, { count: 1, reset })
         return {
           success: true,
           remaining: limit - 1,
-          resetTime,
+          reset,
           totalHits: 1,
           limit
         }
@@ -121,7 +121,7 @@ export async function rateLimit(
         return {
           success: existing.count <= limit,
           remaining: Math.max(0, limit - existing.count),
-          resetTime: existing.resetTime,
+          reset: existing.reset,
           totalHits: existing.count,
           limit
         }
@@ -133,11 +133,25 @@ export async function rateLimit(
     return {
       success: true,
       remaining: limit,
-      resetTime: Date.now() + windowSeconds * 1000,
+      reset: Date.now() + windowSeconds * 1000,
       totalHits: 0,
       limit
     }
   }
+}
+
+/**
+ * Convenience helper for Next.js API routes (method-scoped identifier)
+ */
+export async function rateLimitAPI(
+  request: NextRequest,
+  identifier: string,
+  limit: number = 100,
+  windowSeconds: number = 60
+): Promise<RateLimitResult> {
+  const method = request.method?.toUpperCase() ?? 'GET'
+  const scope = `${method}:${identifier}`
+  return rateLimit(request, scope, limit, windowSeconds)
 }
 
 /**
@@ -187,12 +201,19 @@ function createTokenBucketLimiter(options?: RateLimitOptions) {
  * Generate rate limit headers for HTTP response
  */
 export function rateLimitHeaders(result: RateLimitResult): HeadersInit {
-  return {
+  const headers: Record<string, string> = {
     'X-RateLimit-Limit': result.limit.toString(),
-    'X-RateLimit-Remaining': result.remaining.toString(),
-    'X-RateLimit-Reset': new Date(result.resetTime).toISOString(),
-    'X-RateLimit-Used': result.totalHits.toString()
+    'X-RateLimit-Remaining': Math.max(0, result.remaining).toString(),
+    'X-RateLimit-Reset': new Date(result.reset).toISOString(),
+    'X-RateLimit-Used': result.totalHits.toString(),
   }
+
+  const retryAfterSeconds = Math.max(0, Math.ceil((result.reset - Date.now()) / 1000))
+  if (retryAfterSeconds > 0) {
+    headers['Retry-After'] = retryAfterSeconds.toString()
+  }
+
+  return headers
 }
 
 /**
@@ -306,7 +327,7 @@ function getClientIP(request: NextRequest): string {
 export function cleanupMemoryStore(): void {
   const now = Date.now()
   for (const [key, value] of memoryStore.entries()) {
-    if (value.resetTime <= now) {
+    if (value.reset <= now) {
       memoryStore.delete(key)
     }
   }

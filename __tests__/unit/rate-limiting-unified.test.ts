@@ -53,7 +53,7 @@ describe('Rate Limiting System', () => {
       expect(result.remaining).toBe(limit - 1)
       expect(result.totalHits).toBe(1)
       expect(result.limit).toBe(limit)
-      expect(typeof result.resetTime).toBe('number')
+      expect(typeof result.reset).toBe('number')
     })
 
     it('should respect rate limits in preview mode', async () => {
@@ -122,9 +122,9 @@ describe('Rate Limiting System', () => {
 
       // Assert - Allow for small timing differences
       const expectedResetTime = Math.ceil(now / (windowSeconds * 1000)) * (windowSeconds * 1000)
-      const timeDifference = Math.abs(result.resetTime - expectedResetTime)
+      const timeDifference = Math.abs(result.reset - expectedResetTime)
       expect(timeDifference).toBeLessThan(windowSeconds * 1000) // Within one window
-      expect(result.resetTime).toBeGreaterThan(now) // Reset time should be in future
+      expect(result.reset).toBeGreaterThan(now) // Reset time should be in future
     })
   })
 
@@ -134,7 +134,7 @@ describe('Rate Limiting System', () => {
       const result: RateLimitResult = {
         success: true,
         remaining: 45,
-        resetTime: Date.now() + 60000,
+        reset: Date.now() + 60000,
         totalHits: 5,
         limit: 50
       }
@@ -147,7 +147,8 @@ describe('Rate Limiting System', () => {
         'X-RateLimit-Limit': '50',
         'X-RateLimit-Remaining': '45',
         'X-RateLimit-Reset': expect.any(String),
-        'X-RateLimit-Used': '5'
+        'X-RateLimit-Used': '5',
+        'Retry-After': expect.any(String)
       })
 
       // Verify reset header is valid ISO date
@@ -160,7 +161,7 @@ describe('Rate Limiting System', () => {
       const result: RateLimitResult = {
         success: false,
         remaining: 0,
-        resetTime: Date.now() + 60000,
+        reset: Date.now() + 60000,
         totalHits: 100,
         limit: 100
       }
@@ -171,6 +172,7 @@ describe('Rate Limiting System', () => {
       // Assert
       expect(headers['X-RateLimit-Remaining']).toBe('0')
       expect(headers['X-RateLimit-Used']).toBe('100')
+      expect(headers['Retry-After']).toBeDefined()
     })
   })
 

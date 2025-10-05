@@ -6,8 +6,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { KeywordTrackingService } from '@/lib/keyword-tracking'
-import { rateLimit, rateLimitHeaders } from '@/lib/rate-limiting-unified'
+import { KeywordTrackingService, getKeywordTrackingService } from '@/lib/keyword-tracking'
+import { rateLimitAPI, rateLimitHeaders } from '@/lib/rate-limiting-unified'
 import { auditLog } from '@/lib/audit-logger'
 import { z } from 'zod'
 
@@ -27,7 +27,7 @@ export async function GET(
 ) {
   try {
     // Rate limiting
-    const rateLimitResult = await rateLimit(request, 'keywords-analytics', 50, 60)
+    const rateLimitResult = await rateLimitAPI(request, 'keywords-analytics', 50, 60)
     if (!rateLimitResult.success) {
       return NextResponse.json(
         { error: 'Rate limit exceeded' },
@@ -62,7 +62,7 @@ export async function GET(
 
     const { period, granularity, includeCompetitors, includeForecast, includeOpportunities } = validation.data
 
-    const keywordService = new KeywordTrackingService()
+    const keywordService = getKeywordTrackingService()
     
     // Check if keyword exists
     const keyword = await keywordService.getKeywordById(keywordId)

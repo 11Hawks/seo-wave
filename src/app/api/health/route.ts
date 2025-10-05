@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { rateLimitAPI } from '@/lib/rate-limiting-unified'
+import { rateLimitAPI, rateLimitHeaders } from '@/lib/rate-limiting-unified'
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,11 +11,7 @@ export async function GET(request: NextRequest) {
         { error: 'Rate limit exceeded' },
         { 
           status: 429,
-          headers: {
-            'X-RateLimit-Limit': '100',
-            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-            'X-RateLimit-Reset': rateLimitResult.reset?.toString() || ''
-          }
+          headers: rateLimitHeaders(rateLimitResult)
         }
       )
     }
@@ -29,11 +25,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(healthData, {
       status: 200,
-      headers: {
-        'X-RateLimit-Limit': '100',
-        'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-        'X-RateLimit-Reset': rateLimitResult.reset?.toString() || ''
-      }
+      headers: rateLimitHeaders(rateLimitResult)
     })
   } catch (error) {
     console.error('Health check error:', error)

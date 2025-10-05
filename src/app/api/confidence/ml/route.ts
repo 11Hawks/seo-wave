@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { KeywordTrackingService } from '@/lib/keyword-tracking'
+import { KeywordTrackingService, getKeywordTrackingService } from '@/lib/keyword-tracking'
 import { MLConfidenceEngine } from '@/lib/ml-confidence-engine'
 import { rateLimitAPI, rateLimitHeaders } from '@/lib/rate-limiting-unified'
 import { auditLog } from '@/lib/audit-logger'
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { operation = 'single' } = body
 
-    const keywordService = new KeywordTrackingService()
+    const keywordService = getKeywordTrackingService()
     const mlEngine = new MLConfidenceEngine()
 
     // Handle different ML operations

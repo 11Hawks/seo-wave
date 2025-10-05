@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { SimpleGoogleService } from '@/lib/google-simple'
 import { GoogleAPIService } from '@/lib/google-api-service'
-import { rateLimitAPI } from '@/lib/rate-limiting-unified'
+import { rateLimitAPI, rateLimitHeaders } from '@/lib/rate-limiting-unified'
 import { z } from 'zod'
 
 const callbackSchema = z.object({
@@ -100,11 +100,7 @@ export async function POST(request: NextRequest) {
         { error: 'Rate limit exceeded' },
         { 
           status: 429,
-          headers: {
-            'X-RateLimit-Limit': '20',
-            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-            'X-RateLimit-Reset': rateLimitResult.reset?.toString() || ''
-          }
+          headers: rateLimitHeaders(rateLimitResult)
         }
       )
     }
@@ -139,11 +135,7 @@ export async function POST(request: NextRequest) {
       }
     }, {
       status: 200,
-      headers: {
-        'X-RateLimit-Limit': '20',
-        'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-        'X-RateLimit-Reset': rateLimitResult.reset?.toString() || ''
-      }
+      headers: rateLimitHeaders(rateLimitResult)
     })
 
   } catch (error) {
