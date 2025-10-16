@@ -8,7 +8,7 @@
   "parserOptions": {
     "ecmaVersion": 2022,
     "sourceType": "module",
-    "project": "./tsconfig.json"
+    "project": null
   },
   "plugins": [
     "@typescript-eslint",
@@ -16,22 +16,14 @@
     "security"
   ],
   "rules": {
-    // React Hooks rules
     "react-hooks/rules-of-hooks": "error",
     "react-hooks/exhaustive-deps": "warn",
-    
-    // TypeScript specific rules
     "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
     "@typescript-eslint/no-explicit-any": "warn",
-    "@typescript-eslint/prefer-const": "error",
     "@typescript-eslint/no-non-null-assertion": "warn",
-    
-    // Security rules
     "security/detect-object-injection": "warn",
     "security/detect-non-literal-fs-filename": "warn",
     "security/detect-unsafe-regex": "error",
-    
-    // General code quality
     "no-console": ["warn", { "allow": ["warn", "error"] }],
     "prefer-const": "error",
     "no-var": "error",
@@ -48,6 +40,20 @@
       "version": "detect"
     }
   },
+  "overrides": [
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx", "**/__tests__/**/*"],
+      "env": {
+        "jest": true,
+        "vitest/globals": true
+      },
+      "plugins": ["vitest"],
+      "rules": {
+        "@typescript-eslint/no-explicit-any": "off",
+        "no-console": "off"
+      }
+    }
+  ],
   "ignorePatterns": [
     "node_modules/",
     ".next/",

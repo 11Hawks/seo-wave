@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { code, state } = validationResult.data
+    const { code } = validationResult.data
 
     // Exchange code for tokens using GoogleAPIService
     const googleService = GoogleAPIService.getInstance()

@@ -203,7 +203,7 @@ export async function POST(request: NextRequest) {
  * GET /api/billing/checkout
  * Get available pricing plans
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     // Get authenticated user
     const session = await getServerSession(authOptions);

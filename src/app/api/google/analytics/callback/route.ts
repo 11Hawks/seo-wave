@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Redis } from 'ioredis'
-import { PrismaClient } from '@prisma/client'
 import { GoogleAnalyticsService } from '@/lib/google-analytics'
 import { getRedisClient, getPrismaClient } from '@/lib/service-factory'
-import { rateLimitAPI } from '@/lib/rate-limiting-unified'
 
 export async function GET(request: NextRequest) {
   const redis = getRedisClient()

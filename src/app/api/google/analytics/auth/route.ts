@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { Redis } from 'ioredis'
-import { PrismaClient } from '@prisma/client'
 import { GoogleAnalyticsService } from '@/lib/google-analytics'
 import { authOptions } from '@/lib/auth'
 import { getRedisClient, getPrismaClient } from '@/lib/service-factory'
-import { rateLimitAPI } from '@/lib/rate-limiting-unified'
 
 // Initialize services
 

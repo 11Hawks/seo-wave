@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
  * GET /api/billing/portal
  * Get current billing information and subscription status
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     // Get authenticated user
     const session = await getServerSession(authOptions);
