@@ -317,5 +317,11 @@ if (typeof setInterval !== 'undefined') {
   setInterval(cleanupMemoryStore, 5 * 60 * 1000)
 }
 
+/**
+ * Alias for rateLimit function (backward compatibility)
+ * @deprecated Use rateLimit instead
+ */
+export const rateLimitAPI = rateLimit
+
 // Export compatibility functions
 export { rateLimit as default }
