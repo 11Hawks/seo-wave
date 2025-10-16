@@ -1,3 +1,6 @@
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 /**
  * Billing Portal API Route
  * Creates Stripe customer portal sessions for self-service billing

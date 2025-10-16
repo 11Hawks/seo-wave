@@ -1,3 +1,6 @@
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 /**
  * Stripe Webhooks API Route
  * Handles Stripe webhook events for subscription and payment management
@@ -6,7 +9,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { prisma } from '@/lib/prisma';
-import { verifyWebhookSignature, type StripeWebhookEvent } from '@/lib/stripe';
+import { verifyWebhookSignature } from '@/lib/stripe';
+import { StripeWebhookEvent, MappedSubscriptionStatus } from '@/types/stripe';
 
 
 /**

@@ -1,3 +1,6 @@
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 /**
  * Confidence Threshold Alerts API
  * Manages confidence-based alerts and notifications for data quality monitoring
