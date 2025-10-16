@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
           headers: {
             'X-RateLimit-Limit': '30',
             'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-            'X-RateLimit-Reset': rateLimitResult.reset?.toString() || ''
+            'X-RateLimit-Reset': rateLimitResult.resetTime?.toString() || ''
           }
         }
       )
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
         headers: {
           'X-RateLimit-Limit': '30',
           'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-          'X-RateLimit-Reset': rateLimitResult.reset?.toString() || ''
+          'X-RateLimit-Reset': rateLimitResult.resetTime?.toString() || ''
         }
       })
     }
@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
       headers: {
         'X-RateLimit-Limit': '30',
         'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-        'X-RateLimit-Reset': rateLimitResult.reset?.toString() || ''
+        'X-RateLimit-Reset': rateLimitResult.resetTime?.toString() || ''
       }
     })
 

@@ -1,21 +1,19 @@
-/**
- * Google Analytics OAuth Authorization Route
- * Initiates OAuth flow for Google Analytics integration
- */
-
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { Redis } from 'ioredis'
 import { PrismaClient } from '@prisma/client'
 import { GoogleAnalyticsService } from '@/lib/google-analytics'
 import { authOptions } from '@/lib/auth'
+import { getRedisClient, getPrismaClient } from '@/lib/service-factory'
+import { rateLimitAPI } from '@/lib/rate-limiting-unified'
 
 // Initialize services
-const redis = new Redis(process.env.REDIS_URL!)
-const prisma = new PrismaClient()
 
 export async function GET(request: NextRequest) {
   try {
+    const redis = getRedisClient()
+    const prisma = getPrismaClient()
+
     // Check authentication
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) {

@@ -5,15 +5,11 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { Redis } from 'ioredis'
-import { PrismaClient } from '@prisma/client'
 import { GoogleSearchConsoleService } from '@/lib/google-search-console'
 import { GoogleAnalyticsService } from '@/lib/google-analytics'
 import { authOptions } from '@/lib/auth'
-
-// Initialize services
-const redis = new Redis(process.env.REDIS_URL!)
-const prisma = new PrismaClient()
+import { rateLimitAPI } from '@/lib/rate-limiting-unified'
+import { getRedisClient, getPrismaClient } from '@/lib/service-factory'
 
 interface SyncRequest {
   projectId: string
@@ -26,6 +22,22 @@ interface SyncRequest {
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting
+    const rateLimitResult = await rateLimitAPI(request, 'google-sync', 30)
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded' },
+        { 
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': '30',
+            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+            'X-RateLimit-Reset': rateLimitResult.resetTime?.toString() || ''
+          }
+        }
+      )
+    }
+
     // Check authentication
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) {
@@ -45,6 +57,10 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    // Initialize services within function scope
+    const redis = getRedisClient()
+    const prisma = getPrismaClient()
 
     // Verify user has access to the project
     const project = await prisma.project.findFirst({
@@ -98,14 +114,15 @@ export async function POST(request: NextRequest) {
           )
           results.searchConsole = {
             success: true,
-            message: `Search Console data synced for ${days} days`,
+            message: 'Search Console data synced for ' + days + ' days',
             siteUrl,
             days,
           }
         }
-      } catch (error) {
-        console.error('Search Console sync error:', error)
-        results.errors.push(`Search Console sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      } catch (err) {
+        console.error('Search Console sync error:', err)
+        const errMsg = err instanceof Error ? err.message : 'Unknown error'
+        results.errors.push('Search Console sync failed: ' + errMsg)
       }
     }
 
@@ -125,14 +142,15 @@ export async function POST(request: NextRequest) {
           )
           results.analytics = {
             success: true,
-            message: `Analytics data synced for ${days} days`,
+            message: 'Analytics data synced for ' + days + ' days',
             propertyId,
             days,
           }
         }
-      } catch (error) {
-        console.error('Analytics sync error:', error)
-        results.errors.push(`Analytics sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      } catch (err) {
+        console.error('Analytics sync error:', err)
+        const errMsg = err instanceof Error ? err.message : 'Unknown error'
+        results.errors.push('Analytics sync failed: ' + errMsg)
       }
     }
 
@@ -149,12 +167,12 @@ export async function POST(request: NextRequest) {
       },
       { status: hasErrors && !hasSuccess ? 500 : 200 }
     )
-  } catch (error) {
-    console.error('Google data sync error:', error)
+  } catch (err) {
+    console.error('Google data sync error:', err)
     return NextResponse.json(
       { 
         error: 'Failed to sync Google data',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: err instanceof Error ? err.message : 'Unknown error'
       },
       { status: 500 }
     )
@@ -163,6 +181,22 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    // Rate limiting
+    const rateLimitResult = await rateLimitAPI(request, 'google-sync', 60)
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded' },
+        { 
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': '60',
+            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+            'X-RateLimit-Reset': rateLimitResult.resetTime?.toString() || ''
+          }
+        }
+      )
+    }
+
     // Check authentication
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) {
@@ -181,6 +215,9 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    // Initialize prisma within function scope
+    const prisma = getPrismaClient()
 
     // Get Google integration status for the organization
     const integrations = await prisma.googleIntegration.findMany({
@@ -228,8 +265,8 @@ export async function GET(request: NextRequest) {
       organizationId,
       userId: session.user.id,
     })
-  } catch (error) {
-    console.error('Google integration status error:', error)
+  } catch (err) {
+    console.error('Google integration status error:', err)
     return NextResponse.json(
       { error: 'Failed to get integration status' },
       { status: 500 }

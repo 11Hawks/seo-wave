@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
           headers: {
             'X-RateLimit-Limit': '100',
             'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-            'X-RateLimit-Reset': rateLimitResult.reset?.toString() || ''
+            'X-RateLimit-Reset': rateLimitResult.resetTime?.toString() || ''
           }
         }
       )
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       headers: {
         'X-RateLimit-Limit': '100',
         'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-        'X-RateLimit-Reset': rateLimitResult.reset?.toString() || ''
+        'X-RateLimit-Reset': rateLimitResult.resetTime?.toString() || ''
       }
     })
   } catch (error) {

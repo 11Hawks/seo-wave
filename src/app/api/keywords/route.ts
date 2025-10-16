@@ -382,7 +382,7 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     // Rate limiting
-    const rateLimitResult = await rateLimit(request, 'keywords-write', 30, 60)
+    const rateLimitResult = await rateLimitAPI(request, 'keywords-write', 30, 60)
     if (!rateLimitResult.success) {
       return NextResponse.json(
         { error: 'Rate limit exceeded' },

@@ -1,18 +1,14 @@
-/**
- * Google Analytics OAuth Callback Route
- * Handles the OAuth callback and stores credentials
- */
-
 import { NextRequest, NextResponse } from 'next/server'
 import { Redis } from 'ioredis'
 import { PrismaClient } from '@prisma/client'
 import { GoogleAnalyticsService } from '@/lib/google-analytics'
-
-// Initialize services
-const redis = new Redis(process.env.REDIS_URL!)
-const prisma = new PrismaClient()
+import { getRedisClient, getPrismaClient } from '@/lib/service-factory'
+import { rateLimitAPI } from '@/lib/rate-limiting-unified'
 
 export async function GET(request: NextRequest) {
+  const redis = getRedisClient()
+  const prisma = getPrismaClient()
+  
   try {
     const { searchParams } = new URL(request.url)
     const code = searchParams.get('code')
@@ -63,8 +59,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(
       `${process.env.NEXTAUTH_URL}/dashboard/integrations?success=ga_connected&properties=${propertyCount}`
     )
-  } catch (error) {
-    console.error('Google Analytics callback error:', error)
+  } catch (err) {
+    console.error('Google Analytics callback error:', err)
     
     // Clean up OAuth state on error
     const { searchParams } = new URL(request.url)

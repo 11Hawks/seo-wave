@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
           headers: {
             'X-RateLimit-Limit': '60',
             'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-            'X-RateLimit-Reset': rateLimitResult.reset?.toString() || ''
+            'X-RateLimit-Reset': rateLimitResult.resetTime?.toString() || ''
           }
         }
       )
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
       headers: {
         'X-RateLimit-Limit': '60',
         'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-        'X-RateLimit-Reset': rateLimitResult.reset?.toString() || '',
+        'X-RateLimit-Reset': rateLimitResult.resetTime?.toString() || '',
         'Cache-Control': 'public, max-age=300' // Cache for 5 minutes
       }
     })

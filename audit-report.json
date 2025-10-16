@@ -1,0 +1,59 @@
+{
+  "totalRoutes": 31,
+  "routesWithIssues": 6,
+  "issues": [
+    {
+      "file": "src/app/api/billing/webhooks/route.ts",
+      "line": 1,
+      "type": "missing-rate-limit",
+      "severity": "warning",
+      "message": "Route handler missing rate limiting",
+      "suggestion": "Add rateLimitAPI call at the start of the handler"
+    },
+    {
+      "file": "src/app/api/google/connect/route.ts",
+      "line": 1,
+      "type": "missing-rate-limit",
+      "severity": "warning",
+      "message": "Route handler missing rate limiting",
+      "suggestion": "Add rateLimitAPI call at the start of the handler"
+    },
+    {
+      "file": "src/app/api/google/search-console/auth/route.ts",
+      "line": 1,
+      "type": "missing-rate-limit",
+      "severity": "warning",
+      "message": "Route handler missing rate limiting",
+      "suggestion": "Add rateLimitAPI call at the start of the handler"
+    },
+    {
+      "file": "src/app/api/test/confidence/route.ts",
+      "line": 1,
+      "type": "missing-rate-limit",
+      "severity": "warning",
+      "message": "Route handler missing rate limiting",
+      "suggestion": "Add rateLimitAPI call at the start of the handler"
+    },
+    {
+      "file": "src/app/api/test/keywords/route.ts",
+      "line": 1,
+      "type": "missing-rate-limit",
+      "severity": "warning",
+      "message": "Route handler missing rate limiting",
+      "suggestion": "Add rateLimitAPI call at the start of the handler"
+    },
+    {
+      "file": "src/app/api/test/ml-confidence/route.ts",
+      "line": 1,
+      "type": "missing-rate-limit",
+      "severity": "warning",
+      "message": "Route handler missing rate limiting",
+      "suggestion": "Add rateLimitAPI call at the start of the handler"
+    }
+  ],
+  "summary": {
+    "critical": 0,
+    "warning": 6,
+    "info": 0
+  }
+}
