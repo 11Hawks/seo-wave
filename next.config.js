@@ -4,7 +4,6 @@ const nextConfig = {
     // Enable experimental features
     // typedRoutes: true, // Disabled for now
     optimizeCss: true,
-    optimizeServerReact: true,
     // Reduce build memory usage
     craCompat: true,
   },
