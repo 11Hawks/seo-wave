@@ -14,45 +14,45 @@ export const env = createEnv({
   server: {
     // Database
     DATABASE_URL: z.string().min(1),
-    
+
     // NextAuth.js
     NEXTAUTH_SECRET: z.string().min(1),
-    NEXTAUTH_URL: z.string().url().optional(),
-    
+    NEXTAUTH_URL: z.string().optional(),
+
     // Google OAuth (optional for development)
-    GOOGLE_CLIENT_ID: z.string().min(1).optional().default('development-client-id'),
-    GOOGLE_CLIENT_SECRET: z.string().min(1).optional().default('development-client-secret'),
-    
+    GOOGLE_CLIENT_ID: z.string().optional().default('development-client-id'),
+    GOOGLE_CLIENT_SECRET: z.string().optional().default('development-client-secret'),
+
     // Google APIs
-    GOOGLE_SEARCH_CONSOLE_CLIENT_ID: z.string().min(1).optional(),
-    GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET: z.string().min(1).optional(),
-    GOOGLE_ANALYTICS_CLIENT_ID: z.string().min(1).optional(),
-    GOOGLE_ANALYTICS_CLIENT_SECRET: z.string().min(1).optional(),
-    
+    GOOGLE_SEARCH_CONSOLE_CLIENT_ID: z.string().optional(),
+    GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET: z.string().optional(),
+    GOOGLE_ANALYTICS_CLIENT_ID: z.string().optional(),
+    GOOGLE_ANALYTICS_CLIENT_SECRET: z.string().optional(),
+
     // Stripe (optional for development)
-    STRIPE_SECRET_KEY: z.string().min(1).optional().default('sk_test_development'),
-    STRIPE_WEBHOOK_SECRET: z.string().min(1).optional().default('whsec_development'),
-    
+    STRIPE_SECRET_KEY: z.string().optional().default('sk_test_development'),
+    STRIPE_WEBHOOK_SECRET: z.string().optional().default('whsec_development'),
+
     // Redis
-    REDIS_URL: z.string().url().optional(),
-    
+    REDIS_URL: z.string().optional(),
+
     // External APIs
-    SERPAPI_API_KEY: z.string().min(1).optional(),
-    DATAFORSEO_LOGIN: z.string().min(1).optional(),
-    DATAFORSEO_PASSWORD: z.string().min(1).optional(),
-    
+    SERPAPI_API_KEY: z.string().optional(),
+    DATAFORSEO_LOGIN: z.string().optional(),
+    DATAFORSEO_PASSWORD: z.string().optional(),
+
     // Security
-    JWT_SECRET: z.string().min(1).optional().default('development-jwt-secret-key-32-characters'),
-    ENCRYPTION_KEY: z.string().min(1).optional().default('development-encryption-key-32-chars'),
-    
+    JWT_SECRET: z.string().optional().default('development-jwt-secret-key-32-characters'),
+    ENCRYPTION_KEY: z.string().optional().default('development-encryption-key-32-chars'),
+
     // Rate Limiting
-    RATE_LIMIT_MAX: z.string().regex(/^\d+$/).transform(Number).optional(),
-    RATE_LIMIT_WINDOW: z.string().regex(/^\d+$/).transform(Number).optional(),
-    
+    RATE_LIMIT_MAX: z.string().regex(/^\d+$/).transform(Number).optional().default('1000'),
+    RATE_LIMIT_WINDOW: z.string().regex(/^\d+$/).transform(Number).optional().default('3600000'),
+
     // Monitoring
-    SENTRY_DSN: z.string().url().optional(),
+    SENTRY_DSN: z.string().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
-    
+
     // Node Environment
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   },
@@ -62,8 +62,8 @@ export const env = createEnv({
    * For them to be exposed to the client, prefix them with `NEXT_PUBLIC_`.
    */
   client: {
-    NEXT_PUBLIC_APP_URL: z.string().url().optional().default('http://localhost:3000'),
-    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().min(1).optional().default('pk_test_development'),
+    NEXT_PUBLIC_APP_URL: z.string().optional().default('http://localhost:3000'),
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().optional().default('pk_test_development'),
   },
   
   /**

@@ -1,3 +1,6 @@
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 /**
  * ML-Enhanced Confidence Scoring API
  * Advanced machine learning confidence scoring with pattern recognition

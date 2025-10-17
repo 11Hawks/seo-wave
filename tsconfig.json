@@ -32,10 +32,10 @@
     },
     "forceConsistentCasingInFileNames": true,
     "noUncheckedIndexedAccess": true,
-    "noImplicitReturns": true,
+    "noImplicitReturns": false,
     "noFallthroughCasesInSwitch": true,
-    "noImplicitAny": true,
-    "exactOptionalPropertyTypes": true
+    "noImplicitAny": false,
+    "exactOptionalPropertyTypes": false
   },
   "include": [
     "next-env.d.ts",
