@@ -23,21 +23,28 @@ export interface AuditLogEntry {
  */
 export async function auditLog(entry: AuditLogEntry): Promise<void> {
   try {
-    await prisma.auditLog.create({
-      data: {
-        userId: entry.userId,
-        organizationId: entry.organizationId,
-        action: entry.action,
-        resource: entry.resource,
-        details: entry.details || {},
-        ipAddress: entry.ipAddress,
-        userAgent: entry.userAgent,
-        success: entry.success ?? true,
-        createdAt: new Date()
-      }
-    })
+    const data: any = {
+      userId: entry.userId,
+      organizationId: entry.organizationId,
+      action: entry.action as any,
+      entityType: entry.resource,
+      metadata: entry.details || {},
+    }
+
+    if (entry.details?.entityId) {
+      data.entityId = entry.details.entityId
+    }
+
+    if (entry.ipAddress) {
+      data.ipAddress = entry.ipAddress
+    }
+
+    if (entry.userAgent) {
+      data.userAgent = entry.userAgent
+    }
+
+    await prisma.auditLog.create({ data })
   } catch (error) {
-    // Log audit errors to console but don't throw to avoid breaking main operations
     console.error('Audit logging failed:', error)
   }
 }
@@ -50,29 +57,55 @@ export async function getAuditLogs(filters: {
   organizationId?: string
   action?: string
   resource?: string
+  startDate?: Date
+  endDate?: Date
   from?: Date
   to?: Date
   limit?: number
   offset?: number
-}): Promise<any[]> {
+  page?: number
+  success?: boolean
+}): Promise<{ logs: any[], total: number }> {
   const where: any = {}
-  
+
   if (filters.userId) where.userId = filters.userId
   if (filters.organizationId) where.organizationId = filters.organizationId
-  if (filters.action) where.action = { contains: filters.action, mode: 'insensitive' }
-  if (filters.resource) where.resource = { contains: filters.resource, mode: 'insensitive' }
-  
-  if (filters.from || filters.to) {
-    where.createdAt = {}
-    if (filters.from) where.createdAt.gte = filters.from
-    if (filters.to) where.createdAt.lte = filters.to
+  if (filters.action) where.action = filters.action
+  if (filters.resource) where.entityType = filters.resource
+
+  // Support both from/to and startDate/endDate for compatibility
+  const startDate = filters.startDate || filters.from
+  const endDate = filters.endDate || filters.to
+
+  if (startDate || endDate) {
+    where.timestamp = {}
+    if (startDate) where.timestamp.gte = startDate
+    if (endDate) where.timestamp.lte = endDate
   }
 
-  return prisma.auditLog.findMany({
+  // Calculate pagination
+  let limit = filters.limit || 50
+  let offset = filters.offset || 0
+
+  // If page is provided, calculate offset from page
+  if (filters.page !== undefined && filters.page > 0) {
+    offset = (filters.page - 1) * limit
+  }
+
+  // Cap limit at 100 to prevent excessive queries
+  if (limit > 100) {
+    limit = 100
+  }
+
+  // Get total count for pagination
+  const total = await prisma.auditLog.count({ where })
+
+  // Get paginated logs
+  const logs = await prisma.auditLog.findMany({
     where,
-    orderBy: { createdAt: 'desc' },
-    take: filters.limit || 50,
-    skip: filters.offset || 0,
+    orderBy: { timestamp: 'desc' },
+    take: limit,
+    skip: offset,
     include: {
       user: {
         select: {
@@ -83,6 +116,8 @@ export async function getAuditLogs(filters: {
       }
     }
   })
+
+  return { logs, total }
 }
 
 /**
@@ -94,7 +129,7 @@ export async function cleanupAuditLogs(olderThanDays: number = 365): Promise<num
 
   const result = await prisma.auditLog.deleteMany({
     where: {
-      createdAt: { lt: cutoffDate }
+      timestamp: { lt: cutoffDate }
     }
   })
 

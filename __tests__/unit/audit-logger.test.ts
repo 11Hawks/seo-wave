@@ -225,7 +225,7 @@ describe('Audit Logger', () => {
           userId: 'user-123',
           organizationId: 'org-456'
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { timestamp: 'desc' },
         take: 50,
         skip: 0
       })
@@ -245,7 +245,7 @@ describe('Audit Logger', () => {
         where: {
           userId: 'user-123'
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { timestamp: 'desc' },
         take: 1,
         skip: 1
       })
@@ -267,12 +267,12 @@ describe('Audit Logger', () => {
       expect(mockPrisma.auditLog.findMany).toHaveBeenCalledWith({
         where: {
           userId: 'user-123',
-          createdAt: {
+          timestamp: {
             gte: startDate,
             lte: endDate
           }
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { timestamp: 'desc' },
         take: 50,
         skip: 0
       })
@@ -294,7 +294,7 @@ describe('Audit Logger', () => {
           action: 'CREATE_KEYWORD',
           resource: 'keyword'
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { timestamp: 'desc' },
         take: 50,
         skip: 0
       })
@@ -314,7 +314,7 @@ describe('Audit Logger', () => {
           userId: 'user-123',
           success: false
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { timestamp: 'desc' },
         take: 50,
         skip: 0
       })
@@ -346,7 +346,7 @@ describe('Audit Logger', () => {
         where: {
           userId: 'user-123'
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { timestamp: 'desc' },
         take: 50, // Default limit
         skip: 0   // Default offset
       })
@@ -365,7 +365,7 @@ describe('Audit Logger', () => {
         where: {
           userId: 'user-123'
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { timestamp: 'desc' },
         take: 100, // Capped at maximum
         skip: 0
       })

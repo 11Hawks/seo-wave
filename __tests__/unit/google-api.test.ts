@@ -342,7 +342,7 @@ describe('GoogleAPIService', () => {
   describe('checkRateLimit', () => {
     it('should check API rate limits', async () => {
       // Act
-      const rateLimitStatus = await service.checkRateLimit('user-123')
+      const rateLimitStatus = await service.checkRateLimit()
 
       // Assert
       expect(rateLimitStatus).toMatchObject({
@@ -359,7 +359,7 @@ describe('GoogleAPIService', () => {
       service['redis'].get = vi.fn().mockResolvedValue('1000') // Exceeded limit
 
       // Act
-      const rateLimitStatus = await service.checkRateLimit('user-123')
+      const rateLimitStatus = await service.checkRateLimit()
 
       // Assert
       expect(rateLimitStatus.remaining).toBe(0)
@@ -371,7 +371,7 @@ describe('GoogleAPIService', () => {
 
       // Act & Assert - Should not throw
       expect(async () => {
-        await service.checkRateLimit('user-123')
+        await service.checkRateLimit()
       }).not.toThrow()
     })
   })

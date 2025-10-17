@@ -105,10 +105,10 @@ export class GoogleAPIService {
   /**
    * Exchange authorization code for tokens
    */
-  async getTokensFromCode(code: string): Promise<GoogleAPICredentials> {
+  async exchangeCodeForTokens(code: string): Promise<GoogleAPICredentials> {
     try {
-      const { tokens } = await this.oauth2Client.getTokens(code)
-      
+      const { tokens } = await this.oauth2Client.getToken(code)
+
       if (!tokens.access_token || !tokens.refresh_token) {
         throw new Error('Invalid tokens received from Google')
       }
@@ -141,6 +141,18 @@ export class GoogleAPIService {
 
   /**
    * Refresh access token if expired
+   */
+  async refreshAccessToken(credentials: GoogleAPICredentials): Promise<GoogleAPICredentials> {
+    this.setCredentials(credentials)
+    const result = await this.refreshTokenIfNeeded()
+    if (!result) {
+      throw new Error('Failed to refresh access token')
+    }
+    return result
+  }
+
+  /**
+   * Refresh access token if needed (internal method)
    */
   async refreshTokenIfNeeded(): Promise<GoogleAPICredentials | null> {
     try {
@@ -472,7 +484,7 @@ export class GoogleAPIService {
       }
 
       // Exchange code for tokens
-      const credentials = await this.getTokensFromCode(code);
+      const credentials = await this.exchangeCodeForTokens(code);
 
       // Store credentials if organizationId is provided
       if (organizationId) {
@@ -573,6 +585,36 @@ export class GoogleAPIService {
   }
 
   /**
+   * Validate credentials structure
+   * Checks if credentials object has all required fields
+   */
+  validateCredentials(credentials: GoogleAPICredentials): void {
+    if (!credentials) {
+      throw new Error('Credentials object is required')
+    }
+
+    if (!credentials.access_token || credentials.access_token.trim() === '') {
+      throw new Error('Valid access_token is required')
+    }
+
+    if (!credentials.refresh_token) {
+      throw new Error('Valid refresh_token is required')
+    }
+
+    if (!credentials.scope) {
+      throw new Error('Valid scope is required')
+    }
+
+    if (!credentials.token_type) {
+      throw new Error('Valid token_type is required')
+    }
+
+    if (!credentials.expiry_date || typeof credentials.expiry_date !== 'number') {
+      throw new Error('Valid expiry_date (number) is required')
+    }
+  }
+
+  /**
    * Revoke access and remove stored credentials
    */
   async revokeAccess(
@@ -622,7 +664,7 @@ export class GoogleAPIService {
           data: {
             userId,
             organizationId: organizationId || 'default',
-            action: 'GOOGLE_API_REVOKED',
+            action: 'DELETE' as any,
             entityType: 'INTEGRATION',
             entityId: `${service || 'SEARCH_CONSOLE'}_${userId}`,
             metadata: {
